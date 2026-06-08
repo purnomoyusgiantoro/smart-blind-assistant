@@ -1,0 +1,49 @@
+/// Konstanta global aplikasi SightAssist.
+///
+/// Semua konfigurasi yang bersifat tetap disimpan di sini
+/// agar mudah diubah dari satu tempat.
+class AppConstants {
+  AppConstants._(); // Mencegah instansiasi
+
+  // ─── BLE (ESP32) ───────────────────────────────────────────
+  /// UUID Service BLE pada ESP32 (sesuaikan dengan firmware)
+  static const String bleServiceUuid =
+      '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+
+  /// UUID Characteristic untuk menerima trigger dari tombol ESP32
+  static const String bleTriggerCharUuid =
+      'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+
+  /// Durasi maksimal scan BLE (detik)
+  static const int bleScanTimeoutSeconds = 10;
+
+  // ─── API (OpenRouter) ──────────────────────────────────────
+  /// Base URL OpenRouter API
+  static const String openRouterBaseUrl =
+      'https://openrouter.ai/api/v1/chat/completions';
+
+  /// API Key OpenRouter — TODO: pindahkan ke .env untuk production
+  static const String openRouterApiKey = 'YOUR_OPENROUTER_API_KEY';
+
+  /// Model AI yang digunakan (Gemini Vision via OpenRouter)
+  static const String aiModel = 'google/gemini-2.5-flash';
+
+  // ─── Kamera ────────────────────────────────────────────────
+  /// Resolusi kamera yang digunakan
+  /// ResolutionPreset: low, medium, high, veryHigh, ultraHigh, max
+  static const String cameraResolution = 'medium';
+
+  // ─── TTS ───────────────────────────────────────────────────
+  /// Bahasa default TTS
+  static const String defaultTtsLanguage = 'id-ID';
+
+  /// Kecepatan bicara TTS (0.0 - 1.0)
+  static const double defaultTtsSpeechRate = 0.5;
+
+  /// Pitch TTS (0.5 - 2.0)
+  static const double defaultTtsPitch = 1.0;
+
+  // ─── Timeout ───────────────────────────────────────────────
+  /// Timeout HTTP request (detik)
+  static const int httpTimeoutSeconds = 30;
+}

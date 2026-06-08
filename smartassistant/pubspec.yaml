@@ -1,0 +1,49 @@
+name: smartassistant
+description: "SightAssist — Asisten visual pintar berbasis IoT dan AI untuk tunanetra."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # BLE — komunikasi dengan ESP32
+  flutter_blue_plus: ^1.35.2
+
+  # Kamera — capture gambar
+  camera: ^0.11.1
+
+  # Text-to-Speech — output suara
+  flutter_tts: ^4.2.0
+
+  # Background service — proses tetap jalan saat layar mati
+  flutter_background_service: ^5.1.0
+  flutter_background_service_android: ^6.2.7
+
+  # HTTP — kirim payload ke backend / OpenRouter
+  http: ^1.3.0
+
+  # State management
+  provider: ^6.1.4
+
+  # Permission handler — izin kamera, BLE, mikrofon
+  permission_handler: ^11.4.0
+
+  # Path provider — akses temp directory
+  path_provider: ^2.1.5
+
+  # Shared preferences — simpan pengaturan user
+  shared_preferences: ^2.5.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
