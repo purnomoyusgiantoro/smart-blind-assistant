@@ -1,22 +1,21 @@
-# smartassistant
+# Smart Blind Assistant
 
-A new Flutter project.
+Smart Blind Assistant adalah aplikasi mobile berbasis Flutter yang dirancang untuk membantu penyandang tunanetra. Aplikasi ini terintegrasi dengan perangkat keras eksternal (seperti ESP32) melalui Bluetooth Low Energy (BLE) untuk mengambil gambar, menganalisisnya menggunakan AI (melalui OpenRouter API), dan memberikan umpan balik berupa suara melalui Text-to-Speech (TTS).
 
-## Getting Started
+## Fitur Utama
 
-This project is a starting point for a Flutter application.
+- **Konektivitas BLE**: Terhubung secara mulus dengan perangkat eksternal (ESP32) untuk menerima perintah atau pemicu (trigger).
+- **Integrasi Kamera**: Mengambil gambar dari lingkungan sekitar pengguna menggunakan kamera belakang.
+- **Analisis AI**: Mengirim gambar ke OpenRouter API dengan berbagai mode prompt untuk mendeskripsikan objek, teks, atau lingkungan.
+- **Text-to-Speech (TTS)**: Membacakan hasil analisis AI kepada pengguna, memberikan umpan balik secara instan.
+- **Mode Latar Belakang (Background Service)**: Memastikan aplikasi tetap berfungsi dan dapat merespons pemicu BLE bahkan saat aplikasi tidak aktif di layar utama.
+- **Antarmuka Ramah Aksesibilitas**: Dirancang dengan tema gelap kontras tinggi dan UI berbahasa Indonesia.
 
-A few resources to get you started if this is your first Flutter project:
+## Struktur Direktori
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Berikut adalah struktur utama direktori dalam proyek ini:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-
-
+```text
 lib/
 ├── main.dart                    # Entry point + Provider setup
 ├── app.dart                     # MaterialApp + Theme + Routes
@@ -50,3 +49,21 @@ lib/
 │   └── log/                     # Riwayat interaksi
 └── routes/
     └── app_router.dart
+```
+
+## Persyaratan (Requirements)
+
+- Flutter SDK (Versi terbaru disarankan)
+- Perangkat Android/iOS asli (Diperlukan untuk menguji Kamera, BLE, dan TTS)
+- Akses API Key dari OpenRouter
+
+## Cara Menjalankan Aplikasi
+
+1. Clone repositori ini.
+2. Jalankan `flutter pub get` untuk mengunduh semua dependensi.
+3. Hubungkan perangkat fisik Anda dan jalankan aplikasi dengan perintah:
+   ```bash
+   flutter run
+   ```
+
+> **Catatan**: Aplikasi ini sangat bergantung pada fitur perangkat keras (Kamera dan Bluetooth). Karena itu, jalankan pada perangkat fisik (bukan emulator) untuk pengujian yang akurat.
