@@ -1,3 +1,5 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 /// Konstanta global aplikasi SightAssist.
 ///
 /// Semua konfigurasi yang bersifat tetap disimpan di sini
@@ -22,8 +24,8 @@ class AppConstants {
   static const String openRouterBaseUrl =
       'https://openrouter.ai/api/v1/chat/completions';
 
-  /// API Key OpenRouter — TODO: pindahkan ke .env untuk production
-  static const String openRouterApiKey = 'YOUR_OPENROUTER_API_KEY';
+  /// API Key OpenRouter
+  static String get openRouterApiKey => dotenv.env['OPENROUTER_API_KEY'] ?? '';
 
   /// Model AI yang digunakan (Gemini Vision via OpenRouter)
   static const String aiModel = 'google/gemini-2.5-flash';

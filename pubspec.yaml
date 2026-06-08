@@ -39,6 +39,7 @@ dependencies:
 
   # Shared preferences — simpan pengaturan user
   shared_preferences: ^2.5.3
+  flutter_dotenv: ^6.0.1
 
 dev_dependencies:
   flutter_test:
@@ -47,3 +48,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - .env

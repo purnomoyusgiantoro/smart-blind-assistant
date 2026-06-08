@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
@@ -17,6 +18,9 @@ void main() async {
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
+
+  // Load environment variables
+  await dotenv.load(fileName: ".env");
 
   // Inisialisasi background service
   await BackgroundService.initialize();
