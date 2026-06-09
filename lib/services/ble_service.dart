@@ -4,12 +4,14 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../core/constants/app_constants.dart';
 import '../core/utils/logger.dart';
+import '../core/utils/platform_helper.dart';
 import '../models/ble_device.dart';
 
 /// Service untuk komunikasi Bluetooth Low Energy (BLE) dengan ESP32.
 ///
 /// Mengelola scanning, koneksi, dan mendengarkan notifikasi
 /// trigger dari tombol fisik ESP32.
+/// Hanya aktif di mobile (Android/iOS).
 class BleService {
   static const String _tag = 'BleService';
 
@@ -32,6 +34,11 @@ class BleService {
   ///
   /// Mengembalikan stream dari perangkat yang ditemukan.
   Stream<List<BleDevice>> startScan() {
+    if (!PlatformHelper.isBleSupported) {
+      AppLogger.warning(_tag, 'BLE tidak didukung di platform ini');
+      return Stream.value([]);
+    }
+
     AppLogger.info(_tag, 'Mulai scanning BLE...');
 
     FlutterBluePlus.startScan(
@@ -52,6 +59,7 @@ class BleService {
 
   /// Hentikan scan BLE.
   Future<void> stopScan() async {
+    if (!PlatformHelper.isBleSupported) return;
     await FlutterBluePlus.stopScan();
     AppLogger.info(_tag, 'Scan dihentikan');
   }
@@ -60,6 +68,11 @@ class BleService {
 
   /// Hubungkan ke perangkat BLE berdasarkan device ID.
   Future<bool> connect(String deviceId) async {
+    if (!PlatformHelper.isBleSupported) {
+      AppLogger.warning(_tag, 'BLE tidak didukung di platform ini');
+      return false;
+    }
+
     try {
       AppLogger.info(_tag, 'Menghubungkan ke $deviceId...');
 
@@ -137,3 +150,4 @@ class BleService {
     _triggerController.close();
   }
 }
+

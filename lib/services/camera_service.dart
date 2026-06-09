@@ -7,8 +7,8 @@ import '../core/utils/logger.dart';
 
 /// Service untuk mengelola kamera perangkat.
 ///
-/// Menginisialisasi kamera belakang dan mengambil satu frame
-/// saat trigger diterima dari ESP32.
+/// Menginisialisasi kamera dan mengambil satu frame
+/// saat trigger diterima dari ESP32 atau tombol manual.
 class CameraService {
   static const String _tag = 'CameraService';
 
@@ -18,9 +18,12 @@ class CameraService {
   /// Apakah kamera sudah diinisialisasi
   bool get isInitialized => _controller?.value.isInitialized ?? false;
 
+  /// Getter untuk controller (dipakai oleh UI untuk preview kamera)
+  CameraController? get controller => _controller;
+
   // ─── Initialize ────────────────────────────────────────────
 
-  /// Inisialisasi kamera belakang dengan resolusi medium.
+  /// Inisialisasi kamera dengan resolusi medium.
   Future<bool> initialize() async {
     try {
       _cameras = await availableCameras();
@@ -30,7 +33,7 @@ class CameraService {
         return false;
       }
 
-      // Pilih kamera belakang
+      // Pilih kamera belakang (atau kamera pertama di desktop)
       final backCamera = _cameras!.firstWhere(
         (cam) => cam.lensDirection == CameraLensDirection.back,
         orElse: () => _cameras!.first,
@@ -39,7 +42,7 @@ class CameraService {
       _controller = CameraController(
         backCamera,
         ResolutionPreset.medium,
-        enableAudio: false, // Tidak perlu audio dari kamera
+        enableAudio: false,
       );
 
       await _controller!.initialize();
@@ -93,3 +96,5 @@ class CameraService {
     AppLogger.info(_tag, 'Kamera disposed');
   }
 }
+
+

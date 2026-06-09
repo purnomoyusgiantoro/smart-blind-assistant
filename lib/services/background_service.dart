@@ -4,16 +4,23 @@ import 'dart:ui';
 import 'package:flutter_background_service/flutter_background_service.dart';
 
 import '../core/utils/logger.dart';
+import '../core/utils/platform_helper.dart';
 
 /// Service untuk menjalankan proses di background.
 ///
 /// Memastikan BLE listener dan workflow tetap aktif
 /// meskipun layar HP terkunci atau aplikasi di-minimize.
+/// Hanya aktif di mobile (Android/iOS).
 class BackgroundService {
   static const String _tag = 'BackgroundService';
 
   /// Inisialisasi dan konfigurasi background service.
   static Future<void> initialize() async {
+    if (!PlatformHelper.isBackgroundServiceSupported) {
+      AppLogger.info(_tag, 'Background service tidak didukung di platform ini');
+      return;
+    }
+
     final service = FlutterBackgroundService();
 
     await service.configure(
@@ -66,6 +73,10 @@ class BackgroundService {
 
   /// Mulai background service.
   static Future<void> start() async {
+    if (!PlatformHelper.isBackgroundServiceSupported) {
+      AppLogger.info(_tag, 'Background service tidak didukung di platform ini');
+      return;
+    }
     final service = FlutterBackgroundService();
     await service.startService();
     AppLogger.info(_tag, 'Background service dimulai');
@@ -73,6 +84,7 @@ class BackgroundService {
 
   /// Hentikan background service.
   static Future<void> stop() async {
+    if (!PlatformHelper.isBackgroundServiceSupported) return;
     final service = FlutterBackgroundService();
     service.invoke('stop');
     AppLogger.info(_tag, 'Background service dihentikan');
@@ -80,7 +92,9 @@ class BackgroundService {
 
   /// Cek apakah service sedang berjalan.
   static Future<bool> isRunning() async {
+    if (!PlatformHelper.isBackgroundServiceSupported) return false;
     final service = FlutterBackgroundService();
     return await service.isRunning();
   }
 }
+

@@ -36,7 +36,7 @@ class ApiService {
   // ─── Prompt Templates ──────────────────────────────────────
 
   /// Mendapatkan system prompt berdasarkan mode.
-  String _getSystemPrompt(String mode) {
+  String _getSystemPrompt(String mode, {String? customPrompt}) {
     switch (mode) {
       case 'describe':
         return '''Kamu adalah asisten visual untuk tunanetra. Tugas kamu:
@@ -60,6 +60,12 @@ class ApiService {
 - Peringatkan tentang rintangan, tangga, atau bahaya.
 - Gunakan instruksi singkat: "Lurus aman", "Belok kiri", "Hati-hati tangga", dll.
 - Jawaban maksimal 2 kalimat.''';
+
+      case 'custom':
+        return '''Kamu adalah asisten visual untuk tunanetra. Pengguna memberikan instruksi khusus.
+Instruksi pengguna: ${customPrompt ?? 'Deskripsikan gambar ini.'}
+- Jawab sesuai instruksi pengguna dalam bahasa Indonesia.
+- Jawaban maksimal 3 kalimat.''';
 
       default:
         return 'Deskripsikan gambar ini dalam bahasa Indonesia, maksimal 3 kalimat.';
@@ -91,7 +97,7 @@ class ApiService {
         'messages': [
           {
             'role': 'system',
-            'content': _getSystemPrompt(payload.mode),
+            'content': _getSystemPrompt(payload.mode, customPrompt: payload.customPrompt),
           },
           {
             'role': 'user',

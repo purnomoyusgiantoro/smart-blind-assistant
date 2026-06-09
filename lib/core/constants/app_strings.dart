@@ -15,6 +15,7 @@ class AppStrings {
   static const String statusProcessing = 'AI sedang menganalisis...';
   static const String statusSpeaking = 'Membacakan hasil...';
   static const String statusError = 'Terjadi kesalahan';
+  static const String statusNavigating = 'Navigasi aktif';
 
   // ─── BLE ───────────────────────────────────────────────────
   static const String bleScanning = 'Mencari perangkat...';
@@ -25,8 +26,7 @@ class AppStrings {
   static const String bleScanButton = 'Cari Perangkat';
 
   // ─── Mode ──────────────────────────────────────────────────
-  static const String modeDescribe = 'Mode Deskripsi';
-  static const String modeRead = 'Mode Baca Teks';
+  static const String modeCapture = 'Mode Ambil Gambar';
   static const String modeNavigate = 'Mode Navigasi';
   static const String modeSwitched = 'Mode diubah ke';
 
@@ -36,6 +36,8 @@ class AppStrings {
   static const String ttsCaptureSuccess = 'Gambar berhasil diambil. Mengirim ke AI.';
   static const String ttsError = 'Maaf, terjadi kesalahan. Silakan coba lagi.';
   static const String ttsNoConnection = 'Tidak ada koneksi internet.';
+  static const String ttsNavigationStarted = 'Mode navigasi dimulai. AI akan menganalisis lingkungan secara berkala.';
+  static const String ttsNavigationStopped = 'Mode navigasi dihentikan.';
 
   // ─── Halaman ───────────────────────────────────────────────
   static const String homeTitle = 'Beranda';
@@ -53,4 +55,10 @@ class AppStrings {
   // ─── Tombol ────────────────────────────────────────────────
   static const String buttonTrigger = 'Ambil Gambar & Analisis';
   static const String buttonSwitchMode = 'Ganti Mode';
+  static const String buttonStartNavigation = 'Mulai Navigasi';
+  static const String buttonStopNavigation = 'Hentikan Navigasi';
+
+  // ─── Prompt ────────────────────────────────────────────────
+  static const String promptHint = 'Tulis pertanyaan tentang gambar...';
+  static const String promptLabel = 'Custom Prompt';
 }

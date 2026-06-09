@@ -11,17 +11,22 @@ class CapturePayload {
   /// Informasi perangkat (opsional)
   final String? deviceInfo;
 
-  /// Mode saat ini (describe, read, navigate)
+  /// Mode saat ini (describe, read, navigate, custom)
   final String mode;
+
+  /// Custom prompt dari user (opsional, dipakai saat mode=custom)
+  final String? customPrompt;
 
   const CapturePayload({
     required this.imagePath,
     required this.timestamp,
     required this.mode,
     this.deviceInfo,
+    this.customPrompt,
   });
 
   @override
   String toString() =>
-      'CapturePayload(mode: $mode, path: $imagePath, time: $timestamp)';
+      'CapturePayload(mode: $mode, path: $imagePath, time: $timestamp, prompt: $customPrompt)';
 }
+

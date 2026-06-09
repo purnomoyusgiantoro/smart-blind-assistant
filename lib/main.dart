@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'app.dart';
 import 'core/utils/logger.dart';
+import 'core/utils/platform_helper.dart';
 import 'providers/assistant_provider.dart';
 import 'providers/ble_provider.dart';
 import 'providers/settings_provider.dart';
@@ -14,16 +15,22 @@ import 'services/background_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Kunci orientasi ke portrait (karena app ini headless/minimal UI)
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-  ]);
+  // Kunci orientasi ke portrait (hanya di mobile)
+  if (PlatformHelper.isMobile) {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
+  }
 
   // Load environment variables
   await dotenv.load(fileName: ".env");
 
-  // Inisialisasi background service
-  await BackgroundService.initialize();
+  // Inisialisasi background service (hanya di mobile)
+  if (PlatformHelper.isBackgroundServiceSupported) {
+    await BackgroundService.initialize();
+  } else {
+    AppLogger.info('Main', 'Background service di-skip (platform desktop)');
+  }
 
   // Muat pengaturan user
   final settingsProvider = SettingsProvider();
