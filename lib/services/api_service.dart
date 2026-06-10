@@ -12,6 +12,7 @@ import '../models/capture_payload.dart';
 ///
 /// Mengirimkan gambar ke Vision Language Model (Gemini)
 /// melalui OpenRouter dan mengembalikan deskripsi teks.
+/// Juga mendukung mode obrolan (text-only, tanpa gambar).
 class ApiService {
   static const String _tag = 'ApiService';
 
@@ -36,43 +37,67 @@ class ApiService {
   // ─── Prompt Templates ──────────────────────────────────────
 
   /// Mendapatkan system prompt berdasarkan mode.
+  ///
+  /// Prompt ditulis dengan gaya santai dan natural agar
+  /// agent tidak terkesan kaku saat bicara via TTS.
   String _getSystemPrompt(String mode, {String? customPrompt}) {
     switch (mode) {
-      case 'describe':
-        return '''Kamu adalah asisten visual untuk tunanetra. Tugas kamu:
-- Deskripsikan apa yang ada di depan pengguna dengan jelas dan ringkas.
-- Sebutkan objek-objek penting, orang, teks, dan rintangan.
-- Prioritaskan informasi yang berkaitan dengan keselamatan (tangga, kendaraan, lubang).
-- Gunakan bahasa Indonesia yang mudah dipahami.
-- Jawaban maksimal 3 kalimat.''';
+      case 'general':
+        return '''Kamu adalah teman yang membantu seseorang yang tunanetra melihat dunia.
+Ceritakan apa yang kamu lihat di gambar ini dengan santai dan jelas.
+Kalau ada sesuatu yang berbahaya seperti tangga, kendaraan, atau lubang, langsung bilang duluan ya.
+Sebutkan juga kalau ada teks atau tulisan yang terlihat.
+Jawab pakai bahasa Indonesia sehari-hari, maksimal 3 kalimat.''';
 
-      case 'read':
-        return '''Kamu adalah asisten pembaca teks untuk tunanetra. Tugas kamu:
-- Baca semua teks yang terlihat di gambar.
-- Jika ada papan nama, label, atau tulisan, bacakan semuanya.
-- Gunakan bahasa Indonesia.
-- Jika tidak ada teks, katakan "Tidak ada teks yang terlihat."''';
+      case 'autopilot':
+        final basePrompt = '''Kamu lagi nemenin teman tunanetra jalan-jalan dan harus terus pantau jalurnya.
+Fokus ke keselamatan: sebutkan rintangan, tangga, kendaraan, atau bahaya apa pun.
+Kasih instruksi singkat dan jelas kayak "Lurus aman", "Hati-hati ada tangga di depan", "Belok kiri sedikit".
+Maksimal 2 kalimat aja, yang penting cepet dan jelas.''';
 
-      case 'navigate':
-        return '''Kamu adalah asisten navigasi untuk tunanetra. Tugas kamu:
-- Analisis jalur di depan pengguna.
-- Sebutkan arah yang aman untuk berjalan.
-- Peringatkan tentang rintangan, tangga, atau bahaya.
-- Gunakan instruksi singkat: "Lurus aman", "Belok kiri", "Hati-hati tangga", dll.
-- Jawaban maksimal 2 kalimat.''';
+        if (customPrompt != null && customPrompt.isNotEmpty) {
+          return '''$basePrompt
+
+PENTING — Pengguna juga minta kamu perhatiin hal ini secara khusus: "$customPrompt"
+Kalau kamu melihat hal yang diminta pengguna di gambar, SELALU laporkan itu duluan.
+Contoh: kalau pengguna bilang "beritahu kalau ada orang", dan kamu lihat ada orang, bilang "Ada orang di depan kamu."
+Jangan abaikan instruksi ini, ini sangat penting buat pengguna.''';
+        }
+        return basePrompt;
+
+      case 'obrolan':
+        return '''Kamu adalah asisten pribadi sekaligus teman ngobrol yang asyik untuk seseorang yang tunanetra.
+Kamu itu kayak sahabat yang selalu ada — bisa diajak curhat, tanya apa aja, minta saran, atau sekadar ngobrol santai.
+
+Yang bisa kamu bantu:
+- Jawab pertanyaan apa aja (pengetahuan umum, sains, sejarah, dll)
+- Kasih saran dan solusi kalau pengguna lagi ada masalah atau galau
+- Bantu hitung, terjemahin, atau jelasin sesuatu
+- Jadi teman curhat yang suportif dan pengertian
+- Kasih motivasi kalau pengguna lagi down
+- Bercanda dan bikin suasana asyik
+- Kasih info cuaca, berita, atau hal lain yang ditanyakan
+
+Aturan bicara:
+- Pakai bahasa Indonesia sehari-hari, santai kayak ngobrol sama teman dekat
+- Jangan kaku atau terlalu formal
+- Kalau pertanyaannya lucu, boleh bales lucu juga
+- Kalau pengguna lagi sedih atau curhat, dengerin dan kasih respons yang hangat
+- Jawaban maksimal 4 kalimat biar nggak kepanjangan
+- Kamu boleh nanya balik biar percakapan makin seru''';
 
       case 'custom':
-        return '''Kamu adalah asisten visual untuk tunanetra. Pengguna memberikan instruksi khusus.
-Instruksi pengguna: ${customPrompt ?? 'Deskripsikan gambar ini.'}
-- Jawab sesuai instruksi pengguna dalam bahasa Indonesia.
-- Jawaban maksimal 3 kalimat.''';
+        return '''Kamu adalah teman yang membantu seseorang yang tunanetra.
+Pengguna punya permintaan khusus: ${customPrompt ?? 'Ceritakan apa yang kamu lihat.'}
+Jawab sesuai permintaannya pakai bahasa Indonesia sehari-hari, santai tapi jelas.
+Jawaban maksimal 3 kalimat.''';
 
       default:
-        return 'Deskripsikan gambar ini dalam bahasa Indonesia, maksimal 3 kalimat.';
+        return 'Ceritakan apa yang kamu lihat di gambar ini pakai bahasa Indonesia, maksimal 3 kalimat.';
     }
   }
 
-  // ─── Send to OpenRouter ────────────────────────────────────
+  // ─── Send Image to OpenRouter ──────────────────────────────
 
   /// Kirim gambar ke OpenRouter API dan dapatkan deskripsi AI.
   ///
@@ -110,7 +135,9 @@ Instruksi pengguna: ${customPrompt ?? 'Deskripsikan gambar ini.'}
               },
               {
                 'type': 'text',
-                'text': 'Analisis gambar ini.',
+                'text': payload.customPrompt?.isNotEmpty == true
+                    ? payload.customPrompt!
+                    : 'Analisis gambar ini.',
               },
             ],
           },
@@ -122,34 +149,85 @@ Instruksi pengguna: ${customPrompt ?? 'Deskripsikan gambar ini.'}
       final response = await http
           .post(
             Uri.parse(AppConstants.openRouterBaseUrl),
-            headers: {
-              'Authorization': 'Bearer $_apiKey',
-              'Content-Type': 'application/json',
-              'HTTP-Referer': 'https://sightassist.app',
-              'X-Title': 'SightAssist',
-            },
+            headers: _buildHeaders(),
             body: body,
           )
           .timeout(Duration(seconds: AppConstants.httpTimeoutSeconds));
 
-      // Parse response
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        final content =
-            json['choices']?[0]?['message']?['content'] ?? 'Tidak ada respons';
-        final model = json['model'] ?? _model;
-
-        AppLogger.info(_tag, 'Respons diterima dari $model');
-        return AiResponse.success(description: content, model: model);
-      } else {
-        final errorBody = response.body;
-        AppLogger.error(_tag, 'API Error ${response.statusCode}: $errorBody');
-        return AiResponse.error(
-            'Server error: ${response.statusCode}');
-      }
+      return _parseResponse(response);
     } catch (e) {
       AppLogger.error(_tag, 'Gagal mengirim ke API', e);
       return AiResponse.error('Gagal menghubungi server: $e');
+    }
+  }
+
+  // ─── Send Chat (Text-only, tanpa gambar) ───────────────────
+
+  /// Kirim pesan teks ke OpenRouter API tanpa gambar.
+  ///
+  /// Digunakan di mode obrolan dimana pengguna cukup
+  /// bertanya lewat suara tanpa perlu capture kamera.
+  Future<AiResponse> sendChat(String userMessage) async {
+    try {
+      AppLogger.info(_tag, 'Mengirim chat ke OpenRouter...');
+
+      final body = jsonEncode({
+        'model': _model,
+        'messages': [
+          {
+            'role': 'system',
+            'content': _getSystemPrompt('obrolan'),
+          },
+          {
+            'role': 'user',
+            'content': userMessage,
+          },
+        ],
+        'max_tokens': 300,
+      });
+
+      final response = await http
+          .post(
+            Uri.parse(AppConstants.openRouterBaseUrl),
+            headers: _buildHeaders(),
+            body: body,
+          )
+          .timeout(Duration(seconds: AppConstants.httpTimeoutSeconds));
+
+      return _parseResponse(response);
+    } catch (e) {
+      AppLogger.error(_tag, 'Gagal mengirim chat ke API', e);
+      return AiResponse.error('Gagal menghubungi server: $e');
+    }
+  }
+
+  // ─── Helpers ───────────────────────────────────────────────
+
+  /// Build HTTP headers untuk OpenRouter API.
+  Map<String, String> _buildHeaders() {
+    return {
+      'Authorization': 'Bearer $_apiKey',
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://sightassist.app',
+      'X-Title': 'SightAssist',
+    };
+  }
+
+  /// Parse HTTP response dari OpenRouter.
+  AiResponse _parseResponse(http.Response response) {
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      final content =
+          json['choices']?[0]?['message']?['content'] ?? 'Tidak ada respons';
+      final model = json['model'] ?? _model;
+
+      AppLogger.info(_tag, 'Respons diterima dari $model');
+      return AiResponse.success(description: content, model: model);
+    } else {
+      final errorBody = response.body;
+      AppLogger.error(_tag, 'API Error ${response.statusCode}: $errorBody');
+      return AiResponse.error(
+          'Server error: ${response.statusCode}');
     }
   }
 }

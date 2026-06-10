@@ -5,23 +5,23 @@ import '../../../core/constants/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../providers/assistant_provider.dart';
 
-/// Tombol besar untuk trigger pipeline secara manual.
+/// Tombol besar untuk trigger voice command secara manual.
 ///
 /// Berguna untuk testing tanpa ESP32 atau sebagai
-/// trigger darurat di layar.
+/// trigger darurat di layar. Simulasi tombol 1 (voice command).
 class ManualTriggerButton extends StatelessWidget {
   const ManualTriggerButton({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AssistantProvider>(
-      builder: (_, assistant, _) {
+      builder: (_, assistant, __) {
         final isIdle = assistant.status == AssistantStatus.idle;
 
         return SizedBox(
           height: 64,
           child: ElevatedButton.icon(
-            onPressed: isIdle ? () => assistant.executePipeline() : null,
+            onPressed: isIdle ? () => assistant.handleActionTrigger(1) : null,
             style: ElevatedButton.styleFrom(
               backgroundColor:
                   isIdle ? AppTheme.primaryColor : AppTheme.surfaceBg,
@@ -34,12 +34,12 @@ class ManualTriggerButton extends StatelessWidget {
               elevation: isIdle ? 4 : 0,
             ),
             icon: Icon(
-              isIdle ? Icons.camera_alt : Icons.hourglass_top,
+              isIdle ? Icons.mic : Icons.hourglass_top,
               size: 24,
             ),
             label: Text(
               isIdle
-                  ? AppStrings.buttonTrigger
+                  ? AppStrings.buttonVoiceCommand
                   : assistant.statusLabel,
               style: const TextStyle(
                 fontSize: 14,

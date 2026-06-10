@@ -8,23 +8,23 @@ import '../../../providers/assistant_provider.dart';
 /// Tombol untuk berganti mode asisten.
 ///
 /// Mode berputar secara siklis:
-/// Deskripsi → Baca Teks → Navigasi → Deskripsi → ...
+/// General → Autopilot → Obrolan → General → ...
 class ModeSwitchButton extends StatelessWidget {
   const ModeSwitchButton({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AssistantProvider>(
-      builder: (_, assistant, _) {
+      builder: (_, assistant, __) {
         // Ikon berdasarkan mode saat ini
         final IconData modeIcon;
         switch (assistant.mode) {
-          case AssistantMode.describe:
-            modeIcon = Icons.description;
-          case AssistantMode.read:
-            modeIcon = Icons.menu_book;
-          case AssistantMode.navigate:
-            modeIcon = Icons.navigation;
+          case AssistantMode.general:
+            modeIcon = Icons.visibility;
+          case AssistantMode.autopilot:
+            modeIcon = Icons.speed;
+          case AssistantMode.obrolan:
+            modeIcon = Icons.chat;
         }
 
         return SizedBox(

@@ -1,6 +1,7 @@
 /// Semua string teks UI dan pesan TTS.
 ///
 /// Disimpan terpusat agar mudah diubah dan dilokalisasi.
+/// Gaya bahasa: santai, ramah, natural (bukan kaku/formal).
 class AppStrings {
   AppStrings._();
 
@@ -10,12 +11,13 @@ class AppStrings {
 
   // ─── Status Asisten ────────────────────────────────────────
   static const String statusIdle = 'Siap';
+  static const String statusListening = 'Mendengarkan...';
   static const String statusCapturing = 'Mengambil gambar...';
   static const String statusUploading = 'Mengirim ke server...';
   static const String statusProcessing = 'AI sedang menganalisis...';
   static const String statusSpeaking = 'Membacakan hasil...';
   static const String statusError = 'Terjadi kesalahan';
-  static const String statusNavigating = 'Navigasi aktif';
+  static const String statusAutopiloting = 'Autopilot aktif';
 
   // ─── BLE ───────────────────────────────────────────────────
   static const String bleScanning = 'Mencari perangkat...';
@@ -25,19 +27,34 @@ class AppStrings {
   static const String bleNoDevicesFound = 'Tidak ada perangkat ditemukan';
   static const String bleScanButton = 'Cari Perangkat';
 
-  // ─── Mode ──────────────────────────────────────────────────
-  static const String modeCapture = 'Mode Ambil Gambar';
-  static const String modeNavigate = 'Mode Navigasi';
-  static const String modeSwitched = 'Mode diubah ke';
+  // ─── Mode (3 Mode) ────────────────────────────────────────
+  static const String modeGeneral = 'Mode General';
+  static const String modeAutopilot = 'Mode Autopilot';
+  static const String modeObrolan = 'Mode Obrolan';
+  static const String modeSwitched = 'Ganti ke';
 
-  // ─── TTS Feedback ──────────────────────────────────────────
-  static const String ttsWelcome = 'SightAssist aktif. Tekan tombol untuk memulai.';
-  static const String ttsBleTriggerReceived = 'Tombol ditekan. Mengambil gambar.';
-  static const String ttsCaptureSuccess = 'Gambar berhasil diambil. Mengirim ke AI.';
-  static const String ttsError = 'Maaf, terjadi kesalahan. Silakan coba lagi.';
-  static const String ttsNoConnection = 'Tidak ada koneksi internet.';
-  static const String ttsNavigationStarted = 'Mode navigasi dimulai. AI akan menganalisis lingkungan secara berkala.';
-  static const String ttsNavigationStopped = 'Mode navigasi dihentikan.';
+  // ─── TTS Feedback (Natural & Santai) ──────────────────────
+  static const String ttsWelcome =
+      'Halo! SightAssist sudah siap. '
+      'Tekan tombol pertama untuk ngomong, atau tombol kedua untuk ganti mode.';
+  static const String ttsBleTriggerReceived =
+      'Oke, tunggu sebentar ya. Aku lihat dulu sekelilingmu.';
+  static const String ttsCaptureSuccess =
+      'Udah difoto. Lagi aku analisis ya.';
+  static const String ttsError =
+      'Waduh, ada yang salah nih. Coba lagi ya.';
+  static const String ttsNoConnection = 'Kayaknya internetnya lagi mati deh.';
+  static const String ttsAutopilotStarted =
+      'Mode autopilot aktif. Aku bakal pantau sekelilingmu terus ya.';
+  static const String ttsAutopilotStopped = 'Autopilot dimatikan.';
+  static const String ttsListening = 'Aku dengerin, silakan ngomong.';
+  static const String ttsVoiceNotAvailable = 'Fitur suara belum tersedia nih.';
+  static const String ttsPromptReceived = 'Oke, aku dengar.';
+  static const String ttsAnalyzing = 'Lagi aku pikirkan ya...';
+  static const String ttsChatMode =
+      'Mode obrolan aktif. Aku jadi asisten pribadimu. Mau ngobrolin apa?';
+  static const String ttsAutopilotInstructionHint =
+      'Kasih perintah buat autopilot, misalnya: beritahu kalau ada orang.';
 
   // ─── Halaman ───────────────────────────────────────────────
   static const String homeTitle = 'Beranda';
@@ -53,10 +70,10 @@ class AppStrings {
   static const String settingAutoConnect = 'Auto-Connect BLE';
 
   // ─── Tombol ────────────────────────────────────────────────
-  static const String buttonTrigger = 'Ambil Gambar & Analisis';
+  static const String buttonVoiceCommand = 'Perintah Suara';
   static const String buttonSwitchMode = 'Ganti Mode';
-  static const String buttonStartNavigation = 'Mulai Navigasi';
-  static const String buttonStopNavigation = 'Hentikan Navigasi';
+  static const String buttonStartAutopilot = 'Mulai Autopilot';
+  static const String buttonStopAutopilot = 'Hentikan Autopilot';
 
   // ─── Prompt ────────────────────────────────────────────────
   static const String promptHint = 'Tulis pertanyaan tentang gambar...';

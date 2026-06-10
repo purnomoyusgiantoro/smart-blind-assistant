@@ -13,11 +13,12 @@ import 'widgets/connection_status_card.dart';
 /// Layar utama SightAssist.
 ///
 /// Menampilkan:
-/// - Preview kamera
+/// - Preview kamera (mode general & autopilot)
+/// - Chat view (mode obrolan)
 /// - Status koneksi BLE
-/// - Custom prompt input (mode capture)
-/// - Tombol trigger / navigasi
-/// - Status asisten
+/// - Voice prompt input
+/// - Tombol trigger (voice command + switch mode)
+/// - Status asisten & mode aktif
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -69,13 +70,15 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: SafeArea(
         child: Consumer<AssistantProvider>(
-          builder: (_, assistant, _) {
+          builder: (_, assistant, __) {
             return Column(
               children: [
-                // ─── Preview Kamera ──────────────────────────
+                // ─── Area Utama (Kamera / Chat) ──────────────
                 Expanded(
                   flex: 3,
-                  child: _buildCameraPreview(assistant),
+                  child: assistant.mode == AssistantMode.obrolan
+                      ? _buildChatView(assistant)
+                      : _buildCameraPreview(assistant),
                 ),
 
                 // ─── Panel Bawah ─────────────────────────────
@@ -98,13 +101,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       const AssistantStatusIndicator(),
                       const SizedBox(height: 12),
 
-                      // Voice prompt (mode capture)
-                      if (assistant.mode == AssistantMode.capture)
-                        _buildVoicePrompt(assistant),
+                      // Voice prompt (tampil di semua mode)
+                      _buildVoicePrompt(assistant),
 
                       const SizedBox(height: 12),
 
-                      // Tombol aksi
+                      // Tombol aksi (2 tombol: voice + switch mode)
                       _buildActionButtons(assistant),
 
                       const SizedBox(height: 8),
@@ -122,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Build camera preview widget
+  /// Build camera preview widget (mode General & Autopilot)
   Widget _buildCameraPreview(AssistantProvider assistant) {
     final controller = assistant.cameraController;
 
@@ -160,28 +162,35 @@ class _HomeScreenState extends State<HomeScreen> {
           child: CameraPreview(controller),
         ),
 
-        // Navigasi overlay
-        if (assistant.isNavigating)
+        // Autopilot overlay
+        if (assistant.isAutopiloting)
           Positioned(
             top: 12,
             left: 12,
+            right: 12,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: AppTheme.successColor.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.navigation, size: 16, color: Colors.white),
-                  SizedBox(width: 6),
-                  Text(
-                    'NAVIGASI AKTIF',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                  const Icon(Icons.speed, size: 16, color: Colors.white),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      assistant.autopilotInstruction.isNotEmpty
+                          ? 'AUTOPILOT: ${assistant.autopilotInstruction}'
+                          : 'AUTOPILOT AKTIF',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -219,7 +228,123 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Build voice prompt section (untuk tunanetra)
+  /// Build chat view (mode Obrolan — tanpa kamera)
+  Widget _buildChatView(AssistantProvider assistant) {
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Ikon chat besar
+              Icon(
+                Icons.chat_bubble_outline,
+                size: 72,
+                color: AppTheme.accentColor.withValues(alpha: 0.6),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Mode Obrolan',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Asisten pribadimu siap! Tanya apa aja,\ncurhat, atau sekadar ngobrol santai.',
+                style: TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+
+              // Tampilkan respons terakhir jika ada
+              if (assistant.lastResponse != null &&
+                  assistant.lastResponse!.isSuccess)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppTheme.accentColor.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.smart_toy,
+                            size: 16,
+                            color: AppTheme.accentColor,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'AI',
+                            style: TextStyle(
+                              color: AppTheme.accentColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        assistant.lastResponse!.description,
+                        style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 14,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Processing indicator
+              if (assistant.status == AssistantStatus.processing)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppTheme.accentColor,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Lagi mikir...',
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build voice prompt section
   Widget _buildVoicePrompt(AssistantProvider assistant) {
     return Container(
       width: double.infinity,
@@ -279,7 +404,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       assistant.isRecording
                           ? 'Mendengarkan...'
-                          : 'Tekan mic untuk bicara',
+                          : _getVoiceHint(assistant.mode),
                       style: TextStyle(
                         color: assistant.isRecording
                             ? AppTheme.errorColor
@@ -337,20 +462,49 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Build action buttons
+  /// Dapatkan hint text sesuai mode
+  String _getVoiceHint(AssistantMode mode) {
+    final assistant = context.read<AssistantProvider>();
+    switch (mode) {
+      case AssistantMode.general:
+        return 'Tekan mic untuk tanya tentang sekitarmu';
+      case AssistantMode.autopilot:
+        if (assistant.autopilotInstruction.isNotEmpty) {
+          return 'Instruksi: "${assistant.autopilotInstruction}" (tekan mic untuk ganti)';
+        }
+        return 'Tekan mic untuk kasih perintah autopilot';
+      case AssistantMode.obrolan:
+        return 'Tekan mic untuk ngobrol sama asistenmu';
+    }
+  }
+
+  /// Build action buttons (2 tombol: voice command + switch mode)
   Widget _buildActionButtons(AssistantProvider assistant) {
     final isIdle = assistant.status == AssistantStatus.idle;
-    final isNavigating = assistant.isNavigating;
+    final isAutopiloting = assistant.isAutopiloting;
+    final isBusy = !isIdle && !isAutopiloting &&
+        assistant.status != AssistantStatus.listening;
 
     return Row(
       children: [
-        // Tombol Ganti Mode
+        // Tombol 1: Voice Command / Autopilot toggle
+        Expanded(
+          flex: 3,
+          child: SizedBox(
+            height: 56,
+            child: _buildMainButton(assistant, isIdle, isAutopiloting, isBusy),
+          ),
+        ),
+
+        const SizedBox(width: 12),
+
+        // Tombol 2: Ganti Mode
         Expanded(
           flex: 2,
           child: SizedBox(
             height: 56,
             child: OutlinedButton.icon(
-              onPressed: () => assistant.switchMode(),
+              onPressed: isBusy ? null : () => assistant.switchMode(),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppTheme.accentColor,
                 side: BorderSide(
@@ -362,9 +516,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               icon: Icon(
-                assistant.mode == AssistantMode.capture
-                    ? Icons.camera_alt
-                    : Icons.navigation,
+                _getModeIcon(assistant.mode),
                 size: 20,
               ),
               label: const Text(
@@ -374,95 +526,127 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-
-        const SizedBox(width: 12),
-
-        // Tombol Utama (tergantung mode)
-        Expanded(
-          flex: 3,
-          child: SizedBox(
-            height: 56,
-            child: assistant.mode == AssistantMode.capture
-                ? _buildCaptureButton(assistant, isIdle)
-                : _buildNavigationButton(assistant, isIdle, isNavigating),
-          ),
-        ),
       ],
     );
   }
 
-  /// Tombol capture (mode ambil gambar)
-  Widget _buildCaptureButton(AssistantProvider assistant, bool isIdle) {
+  /// Build tombol utama berdasarkan mode
+  Widget _buildMainButton(
+    AssistantProvider assistant,
+    bool isIdle,
+    bool isAutopiloting,
+    bool isBusy,
+  ) {
+    // Mode autopilot: tampilkan tombol start/stop autopilot
+    if (assistant.mode == AssistantMode.autopilot) {
+      return ElevatedButton.icon(
+        onPressed: (isIdle || isAutopiloting)
+            ? () => assistant.toggleAutopilot()
+            : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isAutopiloting
+              ? AppTheme.errorColor
+              : (isIdle ? AppTheme.successColor : AppTheme.surfaceBg),
+          foregroundColor:
+              (isIdle || isAutopiloting) ? Colors.white : AppTheme.textMuted,
+          disabledBackgroundColor: AppTheme.surfaceBg,
+          disabledForegroundColor: AppTheme.textMuted,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          elevation: (isIdle || isAutopiloting) ? 4 : 0,
+        ),
+        icon: Icon(
+          isAutopiloting ? Icons.stop : Icons.play_arrow,
+          size: 22,
+        ),
+        label: Text(
+          isAutopiloting
+              ? AppStrings.buttonStopAutopilot
+              : AppStrings.buttonStartAutopilot,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+      );
+    }
+
+    // Mode general & obrolan: tombol voice command
     return ElevatedButton.icon(
-      onPressed: isIdle ? () => assistant.handleActionTrigger() : null,
+      onPressed: !isBusy ? () => assistant.handleActionTrigger(1) : null,
       style: ElevatedButton.styleFrom(
-        backgroundColor: isIdle ? AppTheme.primaryColor : AppTheme.surfaceBg,
-        foregroundColor: isIdle ? Colors.black : AppTheme.textMuted,
+        backgroundColor: !isBusy ? AppTheme.primaryColor : AppTheme.surfaceBg,
+        foregroundColor: !isBusy ? Colors.black : AppTheme.textMuted,
         disabledBackgroundColor: AppTheme.surfaceBg,
         disabledForegroundColor: AppTheme.textMuted,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
         ),
-        elevation: isIdle ? 4 : 0,
+        elevation: !isBusy ? 4 : 0,
       ),
       icon: Icon(
-        isIdle ? Icons.camera_alt : Icons.hourglass_top,
+        assistant.isRecording ? Icons.stop : Icons.mic,
         size: 22,
       ),
       label: Text(
-        isIdle ? AppStrings.buttonTrigger : assistant.statusLabel,
+        assistant.isRecording
+            ? 'Berhenti'
+            : (isBusy ? assistant.statusLabel : AppStrings.buttonVoiceCommand),
         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       ),
     );
   }
 
-  /// Tombol navigasi (mode navigasi)
-  Widget _buildNavigationButton(
-      AssistantProvider assistant, bool isIdle, bool isNavigating) {
-    return ElevatedButton.icon(
-      onPressed: (isIdle || isNavigating)
-          ? () => assistant.toggleNavigation()
-          : null,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isNavigating
-            ? AppTheme.errorColor
-            : (isIdle ? AppTheme.successColor : AppTheme.surfaceBg),
-        foregroundColor: (isIdle || isNavigating) ? Colors.white : AppTheme.textMuted,
-        disabledBackgroundColor: AppTheme.surfaceBg,
-        disabledForegroundColor: AppTheme.textMuted,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
-        elevation: (isIdle || isNavigating) ? 4 : 0,
-      ),
-      icon: Icon(
-        isNavigating ? Icons.stop : Icons.navigation,
-        size: 22,
-      ),
-      label: Text(
-        isNavigating
-            ? AppStrings.buttonStopNavigation
-            : AppStrings.buttonStartNavigation,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-      ),
-    );
+  /// Dapatkan ikon sesuai mode
+  IconData _getModeIcon(AssistantMode mode) {
+    switch (mode) {
+      case AssistantMode.general:
+        return Icons.visibility;
+      case AssistantMode.autopilot:
+        return Icons.speed;
+      case AssistantMode.obrolan:
+        return Icons.chat;
+    }
   }
 
   /// Mode label
   Widget _buildModeLabel(AssistantProvider assistant) {
+    // Warna berbeda per mode
+    final Color modeColor;
+    switch (assistant.mode) {
+      case AssistantMode.general:
+        modeColor = AppTheme.primaryColor;
+      case AssistantMode.autopilot:
+        modeColor = AppTheme.successColor;
+      case AssistantMode.obrolan:
+        modeColor = AppTheme.accentColor;
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceBg,
+        color: modeColor.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        assistant.modeLabel,
-        style: TextStyle(
-          color: AppTheme.accentColor,
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
+        border: Border.all(
+          color: modeColor.withValues(alpha: 0.3),
         ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _getModeIcon(assistant.mode),
+            size: 14,
+            color: modeColor,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            assistant.modeLabel,
+            style: TextStyle(
+              color: modeColor,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

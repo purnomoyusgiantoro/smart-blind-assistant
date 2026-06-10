@@ -11,7 +11,7 @@ class AssistantStatusIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Consumer<AssistantProvider>(
-      builder: (_, assistant, _) {
+      builder: (_, assistant, __) {
         final status = assistant.status;
 
         // Tentukan warna dan ikon berdasarkan status
@@ -22,6 +22,9 @@ class AssistantStatusIndicator extends StatelessWidget {
           case AssistantStatus.idle:
             statusColor = AppTheme.primaryColor;
             statusIcon = Icons.visibility;
+          case AssistantStatus.listening:
+            statusColor = AppTheme.warningColor;
+            statusIcon = Icons.hearing;
           case AssistantStatus.capturing:
             statusColor = AppTheme.warningColor;
             statusIcon = Icons.camera_alt;
@@ -37,9 +40,9 @@ class AssistantStatusIndicator extends StatelessWidget {
           case AssistantStatus.error:
             statusColor = AppTheme.errorColor;
             statusIcon = Icons.error_outline;
-          case AssistantStatus.navigating:
+          case AssistantStatus.autopiloting:
             statusColor = AppTheme.successColor;
-            statusIcon = Icons.navigation;
+            statusIcon = Icons.speed;
         }
 
         return Column(
@@ -77,11 +80,11 @@ class AssistantStatusIndicator extends StatelessWidget {
               ],
             ),
 
-            // Respons terakhir (jika ada)
+            // Respons terakhir (jika ada dan sedang idle/autopiloting)
             if (assistant.lastResponse != null &&
                 assistant.lastResponse!.isSuccess &&
                 (status == AssistantStatus.idle ||
-                    status == AssistantStatus.navigating))
+                    status == AssistantStatus.autopiloting))
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Container(
