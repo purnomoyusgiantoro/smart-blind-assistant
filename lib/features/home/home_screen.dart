@@ -70,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: SafeArea(
         child: Consumer<AssistantProvider>(
-          builder: (_, assistant, __) {
+          builder: (context, assistant, child) {
             return Column(
               children: [
                 // ─── Area Utama (Kamera / Chat) ──────────────
@@ -161,6 +161,70 @@ class _HomeScreenState extends State<HomeScreen> {
         ClipRRect(
           child: CameraPreview(controller),
         ),
+
+        // Time and Location overlay
+        Positioned(
+          top: 12,
+          right: 12,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.access_time, size: 14, color: Colors.white),
+                const SizedBox(width: 6),
+                Text(
+                  assistant.currentWibTime,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        if (assistant.mode == AssistantMode.navigasi)
+          Positioned(
+            top: 12,
+            left: 12,
+            right: 120, // Beri ruang untuk jam di kanan
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppTheme.secondaryColor.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.location_on, size: 14, color: Colors.white),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      assistant.shortLocationLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
         // Autopilot overlay
         if (assistant.isAutopiloting)
@@ -473,6 +537,8 @@ class _HomeScreenState extends State<HomeScreen> {
           return 'Instruksi: "${assistant.autopilotInstruction}" (tekan mic untuk ganti)';
         }
         return 'Tekan mic untuk kasih perintah autopilot';
+      case AssistantMode.navigasi:
+        return 'Tekan mic untuk navigasi atau tanya lokasi';
       case AssistantMode.obrolan:
         return 'Tekan mic untuk ngobrol sama asistenmu';
     }
@@ -602,6 +668,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return Icons.visibility;
       case AssistantMode.autopilot:
         return Icons.speed;
+      case AssistantMode.navigasi:
+        return Icons.navigation;
       case AssistantMode.obrolan:
         return Icons.chat;
     }
@@ -616,6 +684,8 @@ class _HomeScreenState extends State<HomeScreen> {
         modeColor = AppTheme.primaryColor;
       case AssistantMode.autopilot:
         modeColor = AppTheme.successColor;
+      case AssistantMode.navigasi:
+        modeColor = AppTheme.secondaryColor;
       case AssistantMode.obrolan:
         modeColor = AppTheme.accentColor;
     }

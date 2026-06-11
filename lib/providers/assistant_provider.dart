@@ -2,13 +2,16 @@ import 'dart:async';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_mlkit_object_detection/google_mlkit_object_detection.dart';
 
 import '../core/constants/app_strings.dart';
 import '../core/utils/logger.dart';
+import '../core/utils/time_utils.dart';
 import '../models/ai_response.dart';
 import '../models/capture_payload.dart';
 import '../services/api_service.dart';
 import '../services/camera_service.dart';
+import '../services/location_service.dart';
 import '../services/stt_service.dart';
 import '../services/tts_service.dart';
 
@@ -24,21 +27,23 @@ enum AssistantStatus {
   autopiloting,  // Kamera aktif dalam mode autopilot
 }
 
-/// Mode operasi asisten (3 mode).
+/// Mode operasi asisten (4 mode).
 ///
-/// Cycle: general → autopilot → obrolan → general → ...
+/// Cycle: general → autopilot → navigasi → obrolan → general → ...
 enum AssistantMode {
   general,    // Ambil gambar + deskripsikan / jawab pertanyaan
   autopilot,  // Kamera selalu nyala, AI auto analisis berkala
+  navigasi,   // Navigasi dengan GPS + kamera (tahu lokasi)
   obrolan,    // Ngobrol bebas tanpa gambar (text-only chat)
 }
 
 /// Provider utama yang mengorkestrasi seluruh alur kerja.
 ///
-/// 3 Mode:
+/// 4 Mode:
 /// 1. **General**: Ambil gambar → kirim prompt ke AI → TTS respons
 /// 2. **Autopilot**: Kamera selalu aktif → AI analisis otomatis setiap interval
-/// 3. **Obrolan**: Suara → STT → AI text-only → TTS respons (tanpa gambar)
+/// 3. **Navigasi**: GPS + Kamera → AI bantu navigasi dengan info lokasi
+/// 4. **Obrolan**: Suara → STT → AI text-only → TTS respons (tanpa gambar)
 ///
 /// 2 Tombol ESP:
 /// - Tombol 1 (trigger=1): Perintah suara (STT)
@@ -50,6 +55,7 @@ class AssistantProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService();
   final TtsService _ttsService = TtsService();
   final SttService _sttService = SttService();
+  final LocationService _locationService = LocationService();
 
   StreamSubscription<int>? _triggerSubscription;
   Timer? _autopilotTimer;
@@ -65,6 +71,8 @@ class AssistantProvider extends ChangeNotifier {
   bool _sttReady = false;
   bool _isRecording = false;
   String _voiceText = '';
+  bool _locationReady = false;
+  String _locationDescription = '';
 
   /// Instruksi persisten untuk mode autopilot.
   /// Perintah ini melekat sampai user mengubahnya.
@@ -113,6 +121,21 @@ class AssistantProvider extends ChangeNotifier {
   /// Instruksi autopilot persisten (melekat sampai diubah)
   String get autopilotInstruction => _autopilotInstruction;
 
+  /// Apakah GPS lokasi tersedia
+  bool get locationReady => _locationReady;
+
+  /// Deskripsi lokasi terakhir
+  String get locationDescription => _locationDescription;
+
+  /// Waktu WIB saat ini (formatted)
+  String get currentWibTime => TimeUtils.formatWibTime(null);
+
+  /// Tanggal & waktu WIB saat ini (formatted)
+  String get currentWibDateTime => TimeUtils.formatWibDateTime(null);
+
+  /// Label lokasi singkat untuk UI
+  String get shortLocationLabel => _locationService.getShortLocationLabel();
+
   /// Label status untuk UI
   String get statusLabel {
     switch (_status) {
@@ -142,6 +165,8 @@ class AssistantProvider extends ChangeNotifier {
         return AppStrings.modeGeneral;
       case AssistantMode.autopilot:
         return AppStrings.modeAutopilot;
+      case AssistantMode.navigasi:
+        return AppStrings.modeNavigasi;
       case AssistantMode.obrolan:
         return AppStrings.modeObrolan;
     }
@@ -154,6 +179,8 @@ class AssistantProvider extends ChangeNotifier {
         return 'general';
       case AssistantMode.autopilot:
         return 'autopilot';
+      case AssistantMode.navigasi:
+        return 'navigasi';
       case AssistantMode.obrolan:
         return 'obrolan';
     }
@@ -167,13 +194,15 @@ class AssistantProvider extends ChangeNotifier {
 
     _cameraReady = await _cameraService.initialize();
     _sttReady = await _sttService.initialize();
+    _locationReady = await _locationService.initialize();
     await _ttsService.initialize();
+    await _apiService.initialize();
 
     // Ucapkan pesan selamat datang
     await _ttsService.speak(AppStrings.ttsWelcome);
 
     notifyListeners();
-    AppLogger.info(_tag, 'Services siap (kamera: $_cameraReady, stt: $_sttReady)');
+    AppLogger.info(_tag, 'Services siap (kamera: $_cameraReady, stt: $_sttReady, lokasi: $_locationReady)');
   }
 
   /// Mulai mendengarkan trigger stream dari BLE.
@@ -221,7 +250,7 @@ class AssistantProvider extends ChangeNotifier {
 
   // ─── Mode Switch ───────────────────────────────────────────
 
-  /// Ganti mode (cycle: general → autopilot → obrolan → general).
+  /// Ganti mode (cycle: general → autopilot → navigasi → obrolan → general).
   Future<void> switchMode() async {
     // Hentikan autopilot jika sedang aktif
     if (_status == AssistantStatus.autopiloting) {
@@ -239,6 +268,9 @@ class AssistantProvider extends ChangeNotifier {
         _mode = AssistantMode.autopilot;
         break;
       case AssistantMode.autopilot:
+        _mode = AssistantMode.navigasi;
+        break;
+      case AssistantMode.navigasi:
         _mode = AssistantMode.obrolan;
         break;
       case AssistantMode.obrolan:
@@ -345,6 +377,14 @@ class AssistantProvider extends ChangeNotifier {
           await _ttsService.speak('Hmm, aku nggak dengar apa-apa. Coba lagi ya.');
         }
         break;
+
+      case AssistantMode.navigasi:
+        // Mode navigasi: ambil gambar + lokasi GPS → kirim ke AI
+        if (text.isNotEmpty) {
+          await _ttsService.speak(AppStrings.ttsPromptReceived);
+        }
+        await executeNavigationPipeline(voicePrompt: text);
+        break;
     }
   }
 
@@ -404,57 +444,104 @@ class AssistantProvider extends ChangeNotifier {
         throw Exception('Gagal mengambil gambar');
       }
 
-      // 2. UPLOADING
-      _setStatus(AssistantStatus.uploading);
-      if (!wasAutopiloting) {
-        await _ttsService.speak(AppStrings.ttsCaptureSuccess);
-      }
-
-      // Tentukan mode prompt
-      final String promptMode;
-      final String? effectivePrompt;
-
-      if (promptOverride == 'autopilot') {
-        // Mode autopilot: selalu gunakan instruksi persisten
-        promptMode = 'autopilot';
-        effectivePrompt = _autopilotInstruction.isNotEmpty
-            ? _autopilotInstruction
-            : null;
-      } else if (promptOverride == 'general') {
-        promptMode = 'general';
-        effectivePrompt = null;
-      } else {
-        // Custom prompt dari voice input
-        final String? userPrompt = promptOverride ??
-            (_customPrompt.isNotEmpty ? _customPrompt : null);
-        if (userPrompt != null && userPrompt.isNotEmpty) {
-          promptMode = 'custom';
-          effectivePrompt = userPrompt;
-        } else {
-          promptMode = _modeString;
-          effectivePrompt = null;
+      if (wasAutopiloting) {
+        // Mode autopilot: proses secara lokal menggunakan ML Kit
+        _setStatus(AssistantStatus.processing);
+        
+        final options = ObjectDetectorOptions(
+          mode: DetectionMode.single,
+          classifyObjects: true,
+          multipleObjects: true,
+        );
+        final objectDetector = ObjectDetector(options: options);
+        final inputImage = InputImage.fromFilePath(imagePath);
+        
+        final List<DetectedObject> objects = await objectDetector.processImage(inputImage);
+        
+        // Kumpulkan label dari objek yang terdeteksi
+        final Set<String> detectedLabels = {};
+        for (DetectedObject detectedObject in objects) {
+          for (Label label in detectedObject.labels) {
+            // Filter confidence > 0.5
+            if (label.confidence > 0.5) {
+              detectedLabels.add(label.text);
+            }
+          }
         }
+        
+        objectDetector.close();
+
+        // Jika ada objek terdeteksi, sebutkan
+        _setStatus(AssistantStatus.speaking);
+        if (detectedLabels.isNotEmpty) {
+          // Terjemahkan label sederhana ke bahasa Indonesia jika memungkinkan (secara statis/kasar)
+          // Dalam skenario nyata, butuh mapping terjemahan yang lebih baik
+          final description = 'Saya melihat: ${detectedLabels.join(', ')}';
+          
+          // Cek apakah instruction/prompt pengguna terpenuhi (opsional)
+          if (_autopilotInstruction.isNotEmpty) {
+            final instructionLower = _autopilotInstruction.toLowerCase();
+            final matchesInstruction = detectedLabels.any((l) => 
+                instructionLower.contains(l.toLowerCase()));
+            
+            if (matchesInstruction) {
+              await _ttsService.speak('Perhatian! $_autopilotInstruction terdeteksi: ${detectedLabels.join(', ')}');
+            } else {
+              await _ttsService.speak(description);
+            }
+          } else {
+            await _ttsService.speak(description);
+          }
+        } else {
+          // Jika tidak ada yang penting, tetap diam di mode autopilot agar tidak berisik
+          AppLogger.info(_tag, 'Tidak ada objek signifikan terdeteksi oleh ML Kit');
+        }
+
+      } else {
+        // Mode general: kirim ke OpenRouter API
+        // 2. UPLOADING
+        _setStatus(AssistantStatus.uploading);
+        await _ttsService.speak(AppStrings.ttsCaptureSuccess);
+
+        final String promptMode;
+        final String? effectivePrompt;
+
+        if (promptOverride == 'general') {
+          promptMode = 'general';
+          effectivePrompt = null;
+        } else {
+          // Custom prompt dari voice input
+          final String? userPrompt = promptOverride ??
+              (_customPrompt.isNotEmpty ? _customPrompt : null);
+          if (userPrompt != null && userPrompt.isNotEmpty) {
+            promptMode = 'custom';
+            effectivePrompt = userPrompt;
+          } else {
+            promptMode = _modeString;
+            effectivePrompt = null;
+          }
+        }
+
+        final payload = CapturePayload(
+          imagePath: imagePath,
+          timestamp: DateTime.now(),
+          mode: promptMode,
+          customPrompt: effectivePrompt,
+        );
+
+        // 3. PROCESSING
+        _setStatus(AssistantStatus.processing);
+        final response = await _apiService.analyzeImage(payload);
+        _lastResponse = response;
+
+        if (!response.isSuccess) {
+          throw Exception(response.errorMessage ?? 'AI error');
+        }
+
+        // 4. SPEAKING
+        _setStatus(AssistantStatus.speaking);
+        await _ttsService.speak(response.description);
       }
-
-      final payload = CapturePayload(
-        imagePath: imagePath,
-        timestamp: DateTime.now(),
-        mode: promptMode,
-        customPrompt: effectivePrompt,
-      );
-
-      // 3. PROCESSING
-      _setStatus(AssistantStatus.processing);
-      final response = await _apiService.analyzeImage(payload);
-      _lastResponse = response;
-
-      if (!response.isSuccess) {
-        throw Exception(response.errorMessage ?? 'AI error');
-      }
-
-      // 4. SPEAKING
-      _setStatus(AssistantStatus.speaking);
-      await _ttsService.speak(response.description);
 
       // Kembali ke status sebelumnya
       if (wasAutopiloting) {
@@ -477,6 +564,73 @@ class AssistantProvider extends ChangeNotifier {
       } else {
         _setStatus(AssistantStatus.idle);
       }
+    }
+  }
+  // ─── Navigation Pipeline ──────────────────────────────────────
+
+  /// Eksekusi pipeline navigasi:
+  /// Ambil lokasi GPS + Capture gambar → Upload → Process → Speak
+  Future<void> executeNavigationPipeline({String voicePrompt = ''}) async {
+    if (_status != AssistantStatus.idle &&
+        _status != AssistantStatus.listening) {
+      AppLogger.warning(_tag, 'Navigasi diabaikan — status: $_status');
+      return;
+    }
+
+    try {
+      // 1. GET LOCATION
+      _setStatus(AssistantStatus.processing); // Pakai status processing sementara untuk lokasi
+      
+      // Ambil lokasi
+      final locationText = await _locationService.getLocationDescription();
+      _locationDescription = locationText;
+      
+      if (!_locationReady || locationText == 'Lokasi tidak tersedia') {
+        await _ttsService.speak(AppStrings.ttsNavigasiLocationFailed);
+      }
+
+      // 2. CAPTURING IMAGE
+      _setStatus(AssistantStatus.capturing);
+      
+      final imagePath = await _cameraService.captureFrame();
+      if (imagePath == null) {
+        throw Exception('Gagal mengambil gambar');
+      }
+
+      // 3. UPLOADING & PROCESSING
+      _setStatus(AssistantStatus.uploading);
+      
+      final payload = CapturePayload(
+        imagePath: imagePath,
+        timestamp: DateTime.now(),
+        mode: 'navigasi',
+        customPrompt: voicePrompt.isNotEmpty ? voicePrompt : null,
+        locationInfo: locationText,
+      );
+
+      _setStatus(AssistantStatus.processing);
+      final response = await _apiService.analyzeImage(payload);
+      _lastResponse = response;
+
+      if (!response.isSuccess) {
+        throw Exception(response.errorMessage ?? 'AI error');
+      }
+
+      // 4. SPEAKING
+      _setStatus(AssistantStatus.speaking);
+      await _ttsService.speak(response.description);
+
+      _setStatus(AssistantStatus.idle);
+      AppLogger.info(_tag, 'Navigasi pipeline selesai');
+    } catch (e) {
+      AppLogger.error(_tag, 'Navigasi pipeline error', e);
+      _errorMessage = e.toString();
+      _setStatus(AssistantStatus.error);
+
+      await _ttsService.speak(AppStrings.ttsError);
+
+      await Future.delayed(const Duration(seconds: 2));
+      _setStatus(AssistantStatus.idle);
     }
   }
 
@@ -602,6 +756,7 @@ class AssistantProvider extends ChangeNotifier {
     _cameraService.dispose();
     _ttsService.dispose();
     _sttService.dispose();
+    _locationService.dispose();
     super.dispose();
   }
 }

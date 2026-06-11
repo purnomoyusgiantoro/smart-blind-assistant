@@ -30,6 +30,7 @@ class AppStrings {
   // ─── Mode (3 Mode) ────────────────────────────────────────
   static const String modeGeneral = 'Mode General';
   static const String modeAutopilot = 'Mode Autopilot';
+  static const String modeNavigasi = 'Mode Navigasi';
   static const String modeObrolan = 'Mode Obrolan';
   static const String modeSwitched = 'Ganti ke';
 
@@ -55,6 +56,14 @@ class AppStrings {
       'Mode obrolan aktif. Aku jadi asisten pribadimu. Mau ngobrolin apa?';
   static const String ttsAutopilotInstructionHint =
       'Kasih perintah buat autopilot, misalnya: beritahu kalau ada orang.';
+  static const String ttsNavigasiStarted =
+      'Mode navigasi aktif. Aku bakal bantu kamu tahu posisi dan arah jalan.';
+  static const String ttsNavigasiLocationFound =
+      'Oke, aku udah dapetin lokasimu.';
+  static const String ttsNavigasiLocationFailed =
+      'Maaf, aku belum bisa dapetin lokasimu sekarang.';
+  static const String ttsNavigasiLocationNotReady =
+      'GPS belum siap nih. Coba pastikan lokasi di HP-mu aktif ya.';
 
   // ─── Halaman ───────────────────────────────────────────────
   static const String homeTitle = 'Beranda';
@@ -74,6 +83,7 @@ class AppStrings {
   static const String buttonSwitchMode = 'Ganti Mode';
   static const String buttonStartAutopilot = 'Mulai Autopilot';
   static const String buttonStopAutopilot = 'Hentikan Autopilot';
+  static const String buttonNavigasi = 'Cek Lokasi & Navigasi';
 
   // ─── Prompt ────────────────────────────────────────────────
   static const String promptHint = 'Tulis pertanyaan tentang gambar...';

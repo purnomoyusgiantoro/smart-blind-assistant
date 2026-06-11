@@ -1,10 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/constants/app_constants.dart';
 import '../core/utils/logger.dart';
+import '../core/utils/time_utils.dart';
 import '../models/ai_response.dart';
 import '../models/capture_payload.dart';
 
@@ -21,6 +24,40 @@ class ApiService {
 
   /// Model AI yang digunakan
   String _model = AppConstants.aiModel;
+
+  /// Memori riwayat obrolan untuk mode Obrolan
+  final List<Map<String, dynamic>> _chatHistory = [];
+  bool _historyLoaded = false;
+
+  /// Inisialisasi API service (memuat riwayat chat dari lokal)
+  Future<void> initialize() async {
+    if (_historyLoaded) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final historyString = prefs.getString('chat_history');
+      if (historyString != null) {
+        final List<dynamic> decoded = jsonDecode(historyString);
+        _chatHistory.clear();
+        for (var item in decoded) {
+          _chatHistory.add(Map<String, dynamic>.from(item));
+        }
+        AppLogger.info(_tag, 'Riwayat chat dimuat: ${_chatHistory.length} pesan');
+      }
+      _historyLoaded = true;
+    } catch (e) {
+      AppLogger.error(_tag, 'Gagal memuat riwayat chat', e);
+    }
+  }
+
+  /// Simpan riwayat chat ke lokal
+  Future<void> _saveChatHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('chat_history', jsonEncode(_chatHistory));
+    } catch (e) {
+      AppLogger.error(_tag, 'Gagal menyimpan riwayat chat', e);
+    }
+  }
 
   /// Update API key (dari settings)
   void setApiKey(String key) {
@@ -92,6 +129,22 @@ Pengguna punya permintaan khusus: ${customPrompt ?? 'Ceritakan apa yang kamu lih
 Jawab sesuai permintaannya pakai bahasa Indonesia sehari-hari, santai tapi jelas.
 Jawaban maksimal 3 kalimat.''';
 
+      case 'navigasi':
+        final waktuWib = TimeUtils.formatWibTime(null);
+        final basePrompt = '''Kamu sedang membantu teman tunanetra bernavigasi.
+Waktu sekarang: $waktuWib.
+${customPrompt != null && customPrompt.isNotEmpty ? 'Informasi lokasi pengguna: $customPrompt' : ''}
+
+Lihat gambar dan bantu navigasi:
+- Jelaskan apa yang terlihat di sekitar (nama toko, landmark, rambu, papan petunjuk)
+- Kasih arahan arah jalan yang aman (lurus, belok kiri/kanan, menyeberang)
+- Sebutkan bahaya di jalur (lubang, tangga, kendaraan, rintangan)
+- Kalau ada pertanyaan khusus dari pengguna, jawab sesuai konteks lokasi
+
+Jawab pakai bahasa Indonesia sehari-hari, santai tapi jelas.
+Maksimal 3 kalimat, yang penting cepet dan informatif.''';
+        return basePrompt;
+
       default:
         return 'Ceritakan apa yang kamu lihat di gambar ini pakai bahasa Indonesia, maksimal 3 kalimat.';
     }
@@ -113,8 +166,43 @@ Jawaban maksimal 3 kalimat.''';
         return AiResponse.error('File gambar tidak ditemukan');
       }
 
-      final bytes = await imageFile.readAsBytes();
-      final base64Image = base64Encode(bytes);
+      // Kompresi gambar secara native
+      final compressedBytes = await FlutterImageCompress.compressWithFile(
+        imageFile.absolute.path,
+        minWidth: 800,
+        minHeight: 800,
+        quality: 70,
+      );
+
+      if (compressedBytes == null) {
+        return AiResponse.error('Gagal mengompres gambar');
+      }
+
+      final base64Image = base64Encode(compressedBytes);
+
+      // Buat user message content
+      final userContent = <Map<String, dynamic>>[
+        {
+          'type': 'image_url',
+          'image_url': {
+            'url': 'data:image/jpeg;base64,$base64Image',
+          },
+        },
+        {
+          'type': 'text',
+          'text': payload.customPrompt?.isNotEmpty == true
+              ? payload.customPrompt!
+              : 'Analisis gambar ini.',
+        },
+      ];
+
+      // Untuk mode navigasi, tambahkan info lokasi
+      final String systemPromptCustom;
+      if (payload.mode == 'navigasi') {
+        systemPromptCustom = payload.locationInfo ?? '';
+      } else {
+        systemPromptCustom = payload.customPrompt ?? '';
+      }
 
       // Buat request body sesuai format OpenRouter/OpenAI
       final body = jsonEncode({
@@ -122,24 +210,16 @@ Jawaban maksimal 3 kalimat.''';
         'messages': [
           {
             'role': 'system',
-            'content': _getSystemPrompt(payload.mode, customPrompt: payload.customPrompt),
+            'content': _getSystemPrompt(
+              payload.mode,
+              customPrompt: payload.mode == 'navigasi'
+                  ? systemPromptCustom
+                  : payload.customPrompt,
+            ),
           },
           {
             'role': 'user',
-            'content': [
-              {
-                'type': 'image_url',
-                'image_url': {
-                  'url': 'data:image/jpeg;base64,$base64Image',
-                },
-              },
-              {
-                'type': 'text',
-                'text': payload.customPrompt?.isNotEmpty == true
-                    ? payload.customPrompt!
-                    : 'Analisis gambar ini.',
-              },
-            ],
+            'content': userContent,
           },
         ],
         'max_tokens': 300,
@@ -168,21 +248,28 @@ Jawaban maksimal 3 kalimat.''';
   /// Digunakan di mode obrolan dimana pengguna cukup
   /// bertanya lewat suara tanpa perlu capture kamera.
   Future<AiResponse> sendChat(String userMessage) async {
+    if (!_historyLoaded) {
+      await initialize();
+    }
+
     try {
       AppLogger.info(_tag, 'Mengirim chat ke OpenRouter...');
 
+      final messages = <Map<String, dynamic>>[
+        {
+          'role': 'system',
+          'content': _getSystemPrompt('obrolan'),
+        },
+        ..._chatHistory,
+        {
+          'role': 'user',
+          'content': userMessage,
+        },
+      ];
+
       final body = jsonEncode({
         'model': _model,
-        'messages': [
-          {
-            'role': 'system',
-            'content': _getSystemPrompt('obrolan'),
-          },
-          {
-            'role': 'user',
-            'content': userMessage,
-          },
-        ],
+        'messages': messages,
         'max_tokens': 300,
       });
 
@@ -194,7 +281,21 @@ Jawaban maksimal 3 kalimat.''';
           )
           .timeout(Duration(seconds: AppConstants.httpTimeoutSeconds));
 
-      return _parseResponse(response);
+      final aiResponse = _parseResponse(response);
+
+      // Jika berhasil, simpan ke riwayat
+      if (aiResponse.isSuccess) {
+        _chatHistory.add({'role': 'user', 'content': userMessage});
+        _chatHistory.add({'role': 'assistant', 'content': aiResponse.description});
+
+        // Batasi maksimal 10 pasang (20 pesan)
+        if (_chatHistory.length > 20) {
+          _chatHistory.removeRange(0, _chatHistory.length - 20);
+        }
+        _saveChatHistory();
+      }
+
+      return aiResponse;
     } catch (e) {
       AppLogger.error(_tag, 'Gagal mengirim chat ke API', e);
       return AiResponse.error('Gagal menghubungi server: $e');

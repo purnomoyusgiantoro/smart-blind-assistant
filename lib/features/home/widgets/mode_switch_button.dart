@@ -15,7 +15,7 @@ class ModeSwitchButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Consumer<AssistantProvider>(
-      builder: (_, assistant, __) {
+      builder: (context, assistant, child) {
         // Ikon berdasarkan mode saat ini
         final IconData modeIcon;
         switch (assistant.mode) {
@@ -23,6 +23,8 @@ class ModeSwitchButton extends StatelessWidget {
             modeIcon = Icons.visibility;
           case AssistantMode.autopilot:
             modeIcon = Icons.speed;
+          case AssistantMode.navigasi:
+            modeIcon = Icons.navigation;
           case AssistantMode.obrolan:
             modeIcon = Icons.chat;
         }

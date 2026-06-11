@@ -94,10 +94,12 @@ class SttService {
           _isListening = false;
         }
       },
-      localeId: localeId,
-      listenMode: ListenMode.dictation,
-      cancelOnError: true,
-      partialResults: true,
+      listenOptions: SpeechListenOptions(
+        localeId: localeId,
+        listenMode: ListenMode.dictation,
+        cancelOnError: true,
+        partialResults: true,
+      ),
     );
   }
 

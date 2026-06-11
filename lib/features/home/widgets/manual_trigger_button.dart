@@ -15,7 +15,7 @@ class ManualTriggerButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Consumer<AssistantProvider>(
-      builder: (_, assistant, __) {
+      builder: (context, assistant, child) {
         final isIdle = assistant.status == AssistantStatus.idle;
 
         return SizedBox(

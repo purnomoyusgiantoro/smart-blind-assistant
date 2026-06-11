@@ -11,7 +11,7 @@ class AssistantStatusIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Consumer<AssistantProvider>(
-      builder: (_, assistant, __) {
+      builder: (context, assistant, child) {
         final status = assistant.status;
 
         // Tentukan warna dan ikon berdasarkan status
@@ -20,8 +20,13 @@ class AssistantStatusIndicator extends StatelessWidget {
 
         switch (status) {
           case AssistantStatus.idle:
-            statusColor = AppTheme.primaryColor;
-            statusIcon = Icons.visibility;
+            if (assistant.mode == AssistantMode.navigasi) {
+              statusColor = AppTheme.secondaryColor;
+              statusIcon = Icons.navigation;
+            } else {
+              statusColor = AppTheme.primaryColor;
+              statusIcon = Icons.visibility;
+            }
           case AssistantStatus.listening:
             statusColor = AppTheme.warningColor;
             statusIcon = Icons.hearing;
