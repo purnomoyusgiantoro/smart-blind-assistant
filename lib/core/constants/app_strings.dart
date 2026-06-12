@@ -32,6 +32,7 @@ class AppStrings {
   static const String modeAutopilot = 'Mode Autopilot';
   static const String modeNavigasi = 'Mode Navigasi';
   static const String modeObrolan = 'Mode Obrolan';
+  static const String modeRead = 'Mode Baca Teks';
   static const String modeSwitched = 'Ganti ke';
 
   // ─── TTS Feedback (Natural & Santai) ──────────────────────
@@ -64,6 +65,8 @@ class AppStrings {
       'Maaf, aku belum bisa dapetin lokasimu sekarang.';
   static const String ttsNavigasiLocationNotReady =
       'GPS belum siap nih. Coba pastikan lokasi di HP-mu aktif ya.';
+  static const String ttsStopAll = 'Semua proses dihentikan ya.';
+  static const String ttsUnknownCommand = 'Perintah tidak dikenali.';
 
   // ─── Halaman ───────────────────────────────────────────────
   static const String homeTitle = 'Beranda';

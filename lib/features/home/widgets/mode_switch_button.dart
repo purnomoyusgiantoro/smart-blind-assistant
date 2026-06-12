@@ -27,6 +27,8 @@ class ModeSwitchButton extends StatelessWidget {
             modeIcon = Icons.navigation;
           case AssistantMode.obrolan:
             modeIcon = Icons.chat;
+          case AssistantMode.read:
+            modeIcon = Icons.menu_book;
         }
 
         return SizedBox(

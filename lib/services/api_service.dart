@@ -190,9 +190,18 @@ Lihat gambar dan bantu navigasi:
 - Kalau ada pertanyaan khusus dari pengguna, jawab sesuai konteks lokasi''';
         return navigasiBase;
 
-      default:
+      case 'read':
         return '''$base
 
+TASK: Text Reading (OCR).
+Fokus utama kamu adalah membaca semua tulisan atau teks yang ada pada gambar ini.
+Sebutkan dan bacakan dengan jelas semua tulisan yang terlihat (seperti papan pengumuman, tulisan di produk, menu, rambu jalan, buku, dll.).
+Jangan terlalu banyak mendeskripsikan gambar, langsung bacakan teksnya secara runtut.
+Kalau tulisan kurang jelas atau tidak ada tulisan, beritahu pengguna.''';
+
+      default:
+        return '''$base
+ 
 TASK: General Analysis.
 Ceritakan apa yang kamu lihat di gambar ini pakai bahasa Indonesia.''';
     }

@@ -4,6 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_object_detection/google_mlkit_object_detection.dart';
 
+import '../core/constants/app_constants.dart';
 import '../core/constants/app_strings.dart';
 import '../core/utils/logger.dart';
 import '../core/utils/time_utils.dart';
@@ -27,23 +28,77 @@ enum AssistantStatus {
   autopiloting,  // Kamera aktif dalam mode autopilot
 }
 
-/// Mode operasi asisten (4 mode).
+/// Mode operasi asisten (5 mode).
 ///
-/// Cycle: general → autopilot → navigasi → obrolan → general → ...
+/// Cycle: general → autopilot → navigasi → obrolan → read → general → ...
 enum AssistantMode {
   general,    // Ambil gambar + deskripsikan / jawab pertanyaan
   autopilot,  // Kamera selalu nyala, AI auto analisis berkala
   navigasi,   // Navigasi dengan GPS + kamera (tahu lokasi)
   obrolan,    // Ngobrol bebas tanpa gambar (text-only chat)
+  read,       // Baca teks pada gambar saja
+}
+
+/// Extension untuk metadata mode (label, prompt, isContinuous, next).
+extension AssistantModeExtension on AssistantMode {
+  /// Label untuk UI & TTS
+  String get label {
+    switch (this) {
+      case AssistantMode.general:
+        return AppStrings.modeGeneral;
+      case AssistantMode.autopilot:
+        return AppStrings.modeAutopilot;
+      case AssistantMode.navigasi:
+        return AppStrings.modeNavigasi;
+      case AssistantMode.obrolan:
+        return AppStrings.modeObrolan;
+      case AssistantMode.read:
+        return AppStrings.modeRead;
+    }
+  }
+
+  /// String prompt untuk API
+  String get promptMode {
+    switch (this) {
+      case AssistantMode.general:
+        return 'general';
+      case AssistantMode.autopilot:
+        return 'autopilot';
+      case AssistantMode.navigasi:
+        return 'navigasi';
+      case AssistantMode.obrolan:
+        return 'obrolan';
+      case AssistantMode.read:
+        return 'read';
+    }
+  }
+
+  /// Apakah mode ini memerlukan kamera selalu aktif (continuous)
+  bool get isContinuous {
+    switch (this) {
+      case AssistantMode.autopilot:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /// Mode berikutnya (cycle)
+  AssistantMode get next {
+    final modes = AssistantMode.values;
+    final nextIndex = (index + 1) % modes.length;
+    return modes[nextIndex];
+  }
 }
 
 /// Provider utama yang mengorkestrasi seluruh alur kerja.
 ///
-/// 4 Mode:
+/// 5 Mode:
 /// 1. **General**: Ambil gambar → kirim prompt ke AI → TTS respons
 /// 2. **Autopilot**: Kamera selalu aktif → AI analisis otomatis setiap interval
 /// 3. **Navigasi**: GPS + Kamera → AI bantu navigasi dengan info lokasi
 /// 4. **Obrolan**: Suara → STT → AI text-only → TTS respons (tanpa gambar)
+/// 5. **Read**: Ambil gambar → AI baca teks pada gambar → TTS respons
 ///
 /// 2 Tombol ESP:
 /// - Tombol 1 (trigger=1): Perintah suara (STT)
@@ -159,32 +214,10 @@ class AssistantProvider extends ChangeNotifier {
   }
 
   /// Label mode untuk UI
-  String get modeLabel {
-    switch (_mode) {
-      case AssistantMode.general:
-        return AppStrings.modeGeneral;
-      case AssistantMode.autopilot:
-        return AppStrings.modeAutopilot;
-      case AssistantMode.navigasi:
-        return AppStrings.modeNavigasi;
-      case AssistantMode.obrolan:
-        return AppStrings.modeObrolan;
-    }
-  }
+  String get modeLabel => _mode.label;
 
   /// String mode untuk API prompt
-  String get _modeString {
-    switch (_mode) {
-      case AssistantMode.general:
-        return 'general';
-      case AssistantMode.autopilot:
-        return 'autopilot';
-      case AssistantMode.navigasi:
-        return 'navigasi';
-      case AssistantMode.obrolan:
-        return 'obrolan';
-    }
-  }
+  String get _modeString => _mode.promptMode;
 
   // ─── Initialize ────────────────────────────────────────────
 
@@ -207,35 +240,37 @@ class AssistantProvider extends ChangeNotifier {
 
   /// Mulai mendengarkan trigger stream dari BLE.
   ///
-  /// ESP32 mengirim nilai berbeda untuk masing-masing tombol:
-  /// - triggerValue == 1 → Tombol voice (STT)
-  /// - triggerValue == 2 → Tombol switch mode
+  /// ESP32 mengirim byte command:
+  /// - 0x01 (bleCmdVoice): Voice command (STT)
+  /// - 0x02 (bleCmdNextMode): Ganti mode (cycle)
+  /// - 0x03 (bleCmdStopAll): Hentikan semua proses (Emergency Stop)
   void listenToTrigger(Stream<int> triggerStream) {
     _triggerSubscription?.cancel();
     _triggerSubscription = triggerStream.listen((triggerValue) {
-      AppLogger.info(_tag, 'Trigger diterima: $triggerValue');
+      AppLogger.info(_tag, 'Trigger diterima: 0x${triggerValue.toRadixString(16)}');
       handleActionTrigger(triggerValue);
     });
     AppLogger.info(_tag, 'Listening ke trigger stream');
   }
 
   /// Handle trigger dari hardware (BLE) atau UI.
-  ///
-  /// [triggerValue] menentukan aksi:
-  /// - 1 = Tombol voice command (mulai/stop STT)
-  /// - 2 = Tombol switch mode (cycle mode)
   Future<void> handleActionTrigger(int triggerValue) async {
     switch (triggerValue) {
-      case 1:
+      case AppConstants.bleCmdVoice:
         // Tombol 1: Voice command
         await _handleVoiceTrigger();
         break;
-      case 2:
+      case AppConstants.bleCmdNextMode:
         // Tombol 2: Switch mode
         await switchMode();
         break;
+      case AppConstants.bleCmdStopAll:
+        // Tombol 1+2: Emergency stop
+        await stopAll();
+        break;
       default:
-        AppLogger.warning(_tag, 'Trigger tidak dikenal: $triggerValue');
+        AppLogger.warning(_tag, 'Trigger tidak dikenal: 0x${triggerValue.toRadixString(16)}');
+        await _ttsService.speak(AppStrings.ttsUnknownCommand);
     }
   }
 
@@ -250,7 +285,7 @@ class AssistantProvider extends ChangeNotifier {
 
   // ─── Mode Switch ───────────────────────────────────────────
 
-  /// Ganti mode (cycle: general → autopilot → navigasi → obrolan → general).
+  /// Ganti mode (cycle ke mode berikutnya).
   Future<void> switchMode() async {
     // Hentikan autopilot jika sedang aktif
     if (_status == AssistantStatus.autopiloting) {
@@ -262,21 +297,8 @@ class AssistantProvider extends ChangeNotifier {
       await stopVoiceInput();
     }
 
-    // Cycle ke mode berikutnya
-    switch (_mode) {
-      case AssistantMode.general:
-        _mode = AssistantMode.autopilot;
-        break;
-      case AssistantMode.autopilot:
-        _mode = AssistantMode.navigasi;
-        break;
-      case AssistantMode.navigasi:
-        _mode = AssistantMode.obrolan;
-        break;
-      case AssistantMode.obrolan:
-        _mode = AssistantMode.general;
-        break;
-    }
+    // Cycle ke mode berikutnya menggunakan extension
+    _mode = _mode.next;
     notifyListeners();
 
     // Ucapkan mode baru
@@ -384,6 +406,16 @@ class AssistantProvider extends ChangeNotifier {
           await _ttsService.speak(AppStrings.ttsPromptReceived);
         }
         await executeNavigationPipeline(voicePrompt: text);
+        break;
+
+      case AssistantMode.read:
+        // Mode read: ambil gambar → baca teks saja
+        if (text.isNotEmpty) {
+          await _ttsService.speak(AppStrings.ttsPromptReceived);
+        } else {
+          await _ttsService.speak(AppStrings.ttsBleTriggerReceived);
+        }
+        await executePipeline(promptOverride: 'read');
         break;
     }
   }
@@ -747,12 +779,28 @@ class AssistantProvider extends ChangeNotifier {
     _apiService.setApiKey(key);
   }
 
+  // ─── Stop All ──────────────────────────────────────────────
+
+  /// Hentikan semua proses aktif (emergency stop).
+  ///
+  /// Menghentikan autopilot, STT, TTS, dan reset ke idle.
+  Future<void> stopAll() async {
+    _autopilotTimer?.cancel();
+    _autopilotTimer = null;
+    await _sttService.stopListening();
+    await _ttsService.stop();
+    _isRecording = false;
+    _setStatus(AssistantStatus.idle);
+    await _ttsService.speak(AppStrings.ttsStopAll);
+    AppLogger.info(_tag, 'Semua proses dihentikan');
+  }
+
   // ─── Dispose ───────────────────────────────────────────────
 
   @override
   void dispose() {
+    stopAll();
     _triggerSubscription?.cancel();
-    _autopilotTimer?.cancel();
     _cameraService.dispose();
     _ttsService.dispose();
     _sttService.dispose();

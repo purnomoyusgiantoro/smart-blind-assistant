@@ -19,6 +19,16 @@ class AppConstants {
   /// Durasi maksimal scan BLE (detik)
   static const int bleScanTimeoutSeconds = 10;
 
+  // ─── BLE Commands ──────────────────────────────────────────
+  /// Command: voice command (tombol 1)
+  static const int bleCmdVoice = 0x01;
+
+  /// Command: ganti mode / cycle mode (tombol 2)
+  static const int bleCmdNextMode = 0x02;
+
+  /// Command: emergency stop / stop all (tombol 1+2)
+  static const int bleCmdStopAll = 0x03;
+
   // ─── API (OpenRouter) ──────────────────────────────────────
   /// Base URL OpenRouter API
   static const String openRouterBaseUrl =

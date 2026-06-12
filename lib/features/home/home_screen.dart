@@ -541,6 +541,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return 'Tekan mic untuk navigasi atau tanya lokasi';
       case AssistantMode.obrolan:
         return 'Tekan mic untuk ngobrol sama asistenmu';
+      case AssistantMode.read:
+        return 'Tekan mic untuk membaca teks pada gambar';
     }
   }
 
@@ -672,6 +674,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return Icons.navigation;
       case AssistantMode.obrolan:
         return Icons.chat;
+      case AssistantMode.read:
+        return Icons.menu_book;
     }
   }
 
@@ -682,12 +686,19 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (assistant.mode) {
       case AssistantMode.general:
         modeColor = AppTheme.primaryColor;
+        break;
       case AssistantMode.autopilot:
         modeColor = AppTheme.successColor;
+        break;
       case AssistantMode.navigasi:
         modeColor = AppTheme.secondaryColor;
+        break;
       case AssistantMode.obrolan:
         modeColor = AppTheme.accentColor;
+        break;
+      case AssistantMode.read:
+        modeColor = Colors.orange;
+        break;
     }
 
     return Container(

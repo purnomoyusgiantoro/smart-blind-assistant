@@ -23,6 +23,9 @@ class AssistantStatusIndicator extends StatelessWidget {
             if (assistant.mode == AssistantMode.navigasi) {
               statusColor = AppTheme.secondaryColor;
               statusIcon = Icons.navigation;
+            } else if (assistant.mode == AssistantMode.read) {
+              statusColor = Colors.orange;
+              statusIcon = Icons.menu_book;
             } else {
               statusColor = AppTheme.primaryColor;
               statusIcon = Icons.visibility;
