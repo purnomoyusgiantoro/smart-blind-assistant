@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:smartassistant/features/scan/widgets/device_list_tile.dart';
-import 'package:smartassistant/models/ble_device.dart';
 import 'package:smartassistant/providers/ble_provider.dart';
 import 'package:smartassistant/features/scan/scan_screen.dart';
 
