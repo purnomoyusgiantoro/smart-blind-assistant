@@ -106,13 +106,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
                       const SizedBox(height: 12),
 
-                      // Tombol aksi (2 tombol: voice + switch mode)
                       _buildActionButtons(assistant),
 
-                      const SizedBox(height: 8),
-
-                      // Mode label
-                      _buildModeLabel(assistant),
                     ],
                   ),
                 ),
@@ -297,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       color: Colors.black,
       child: Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -571,7 +566,7 @@ class _HomeScreenState extends State<HomeScreen> {
           flex: 2,
           child: SizedBox(
             height: 56,
-            child: OutlinedButton.icon(
+            child: OutlinedButton(
               onPressed: isBusy ? null : () => assistant.switchMode(),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppTheme.accentColor,
@@ -582,14 +577,24 @@ class _HomeScreenState extends State<HomeScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
               ),
-              icon: Icon(
-                _getModeIcon(assistant.mode),
-                size: 20,
-              ),
-              label: const Text(
-                AppStrings.buttonSwitchMode,
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _getModeIcon(assistant.mode),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      AppStrings.buttonSwitchMode,
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -607,7 +612,7 @@ class _HomeScreenState extends State<HomeScreen> {
   ) {
     // Mode autopilot: tampilkan tombol start/stop autopilot
     if (assistant.mode == AssistantMode.autopilot) {
-      return ElevatedButton.icon(
+      return ElevatedButton(
         onPressed: (isIdle || isAutopiloting)
             ? () => assistant.toggleAutopilot()
             : null,
@@ -622,23 +627,33 @@ class _HomeScreenState extends State<HomeScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           elevation: (isIdle || isAutopiloting) ? 4 : 0,
         ),
-        icon: Icon(
-          isAutopiloting ? Icons.stop : Icons.play_arrow,
-          size: 22,
-        ),
-        label: Text(
-          isAutopiloting
-              ? AppStrings.buttonStopAutopilot
-              : AppStrings.buttonStartAutopilot,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isAutopiloting ? Icons.stop : Icons.play_arrow,
+                size: 22,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                isAutopiloting
+                    ? AppStrings.buttonStopAutopilot
+                    : AppStrings.buttonStartAutopilot,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     // Mode general & obrolan: tombol voice command
-    return ElevatedButton.icon(
+    return ElevatedButton(
       onPressed: !isBusy ? () => assistant.handleActionTrigger(1) : null,
       style: ElevatedButton.styleFrom(
         backgroundColor: !isBusy ? AppTheme.primaryColor : AppTheme.surfaceBg,
@@ -648,17 +663,27 @@ class _HomeScreenState extends State<HomeScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
         ),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         elevation: !isBusy ? 4 : 0,
       ),
-      icon: Icon(
-        assistant.isRecording ? Icons.stop : Icons.mic,
-        size: 22,
-      ),
-      label: Text(
-        assistant.isRecording
-            ? 'Berhenti'
-            : (isBusy ? assistant.statusLabel : AppStrings.buttonVoiceCommand),
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              assistant.isRecording ? Icons.stop : Icons.mic,
+              size: 22,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              assistant.isRecording
+                  ? 'Berhenti'
+                  : (isBusy ? assistant.statusLabel : AppStrings.buttonVoiceCommand),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -679,56 +704,5 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// Mode label
-  Widget _buildModeLabel(AssistantProvider assistant) {
-    // Warna berbeda per mode
-    final Color modeColor;
-    switch (assistant.mode) {
-      case AssistantMode.general:
-        modeColor = AppTheme.primaryColor;
-        break;
-      case AssistantMode.autopilot:
-        modeColor = AppTheme.successColor;
-        break;
-      case AssistantMode.navigasi:
-        modeColor = AppTheme.secondaryColor;
-        break;
-      case AssistantMode.obrolan:
-        modeColor = AppTheme.accentColor;
-        break;
-      case AssistantMode.read:
-        modeColor = Colors.orange;
-        break;
-    }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: modeColor.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: modeColor.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _getModeIcon(assistant.mode),
-            size: 14,
-            color: modeColor,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            assistant.modeLabel,
-            style: TextStyle(
-              color: modeColor,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

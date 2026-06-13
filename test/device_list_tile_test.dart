@@ -1,0 +1,30 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:smartassistant/features/scan/widgets/device_list_tile.dart';
+import 'package:smartassistant/models/ble_device.dart';
+import 'package:smartassistant/providers/ble_provider.dart';
+
+void main() {
+  testWidgets('DeviceListTile renders without errors', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => BleProvider()),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: [
+                DeviceListTile(
+                  device: BleDevice(name: 'Test Device', id: '11:22:33:44:55:66', rssi: -50),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Test Device'), findsOneWidget);
+  });
+}

@@ -12,6 +12,9 @@ class TtsService {
   final FlutterTts _tts = FlutterTts();
   bool _isSpeaking = false;
 
+  /// Callback yang dipanggil saat TTS selesai berbicara.
+  void Function()? onSpeechCompleted;
+
   /// Apakah sedang berbicara
   bool get isSpeaking => _isSpeaking;
 
@@ -33,6 +36,9 @@ class TtsService {
     _tts.setCompletionHandler(() {
       _isSpeaking = false;
       AppLogger.info(_tag, 'Selesai berbicara');
+      if (onSpeechCompleted != null) {
+        onSpeechCompleted!();
+      }
     });
 
     _tts.setErrorHandler((msg) {

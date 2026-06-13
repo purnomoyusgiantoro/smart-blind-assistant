@@ -17,9 +17,40 @@ class ScanScreen extends StatelessWidget {
         title: const Text(AppStrings.scanTitle),
       ),
       body: Consumer<BleProvider>(
-        builder: (_, ble, _) {
+        builder: (context, ble, _) {
           return Column(
             children: [
+              // ─── Error Banner ──────────────────────────────
+              if (ble.lastError != null)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.errorColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppTheme.errorColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded,
+                          color: AppTheme.errorColor, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          ble.lastError ?? '',
+                          style: TextStyle(
+                            color: AppTheme.errorColor,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               // ─── Tombol Scan ──────────────────────────────
               Padding(
                 padding: const EdgeInsets.all(20),
@@ -71,6 +102,17 @@ class ScanScreen extends StatelessWidget {
                                 fontSize: 16,
                               ),
                             ),
+                            if (!ble.isScanning) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Pastikan ESP32 menyala dan\nBluetooth + Lokasi aktif',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppTheme.textMuted,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       )

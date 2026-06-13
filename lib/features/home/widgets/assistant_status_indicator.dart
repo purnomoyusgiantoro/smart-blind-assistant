@@ -89,8 +89,11 @@ class AssistantStatusIndicator extends StatelessWidget {
             ),
 
             // Respons terakhir (jika ada dan sedang idle/autopiloting)
+            // Di mode obrolan, asisten sudah menampilkan respons terakhir di layar utama,
+            // jadi tidak perlu ditampilkan lagi di indikator status bawah agar hemat tempat.
             if (assistant.lastResponse != null &&
                 assistant.lastResponse!.isSuccess &&
+                assistant.mode != AssistantMode.obrolan &&
                 (status == AssistantStatus.idle ||
                     status == AssistantStatus.autopiloting))
               Padding(

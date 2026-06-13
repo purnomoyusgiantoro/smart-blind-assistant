@@ -30,9 +30,36 @@ class BleService {
 
   // ─── Scan ──────────────────────────────────────────────────
 
+  /// Cek apakah Bluetooth adapter ON dan siap digunakan.
+  /// Mengembalikan true jika adapter sudah ON.
+  Future<bool> isAdapterOn() async {
+    if (!PlatformHelper.isBleSupported) return false;
+
+    try {
+      final state = await FlutterBluePlus.adapterState.first;
+      AppLogger.info(_tag, 'Adapter state: $state');
+      return state == BluetoothAdapterState.on;
+    } catch (e) {
+      AppLogger.error(_tag, 'Gagal cek adapter state', e);
+      return false;
+    }
+  }
+
+  /// Request user untuk menyalakan Bluetooth (Android only).
+  Future<void> turnOnBluetooth() async {
+    if (!PlatformHelper.isBleSupported) return;
+    try {
+      await FlutterBluePlus.turnOn();
+      AppLogger.info(_tag, 'Request turn on Bluetooth');
+    } catch (e) {
+      AppLogger.error(_tag, 'Gagal turn on Bluetooth', e);
+    }
+  }
+
   /// Mulai scan perangkat BLE di sekitar.
   ///
   /// Mengembalikan stream dari perangkat yang ditemukan.
+  /// Sebelum memanggil ini, pastikan adapter sudah ON via [isAdapterOn].
   Stream<List<BleDevice>> startScan() {
     if (!PlatformHelper.isBleSupported) {
       AppLogger.warning(_tag, 'BLE tidak didukung di platform ini');
@@ -41,19 +68,55 @@ class BleService {
 
     AppLogger.info(_tag, 'Mulai scanning BLE...');
 
+    // Set log level verbose untuk debugging
+    FlutterBluePlus.setLogLevel(LogLevel.verbose);
+
+    // Pastikan scan sebelumnya dihentikan dulu
+    FlutterBluePlus.stopScan();
+
+    // Mulai scan — TANPA withServices agar semua device muncul
+    // TANPA androidUsesFineLocation agar kompatibel dengan neverForLocation
     FlutterBluePlus.startScan(
       timeout: Duration(seconds: AppConstants.bleScanTimeoutSeconds),
     );
 
     return FlutterBluePlus.scanResults.map((results) {
-      return results
-          .where((r) => r.device.platformName.isNotEmpty)
-          .map((r) => BleDevice(
-                name: r.device.platformName,
-                id: r.device.remoteId.str,
-                rssi: r.rssi,
-              ))
-          .toList();
+      AppLogger.info(
+          _tag, 'scanResults: ${results.length} raw results');
+
+      final devices = <BleDevice>[];
+      for (final r in results) {
+        // Ambil nama dari platformName atau advName
+        final name = r.device.platformName.isNotEmpty
+            ? r.device.platformName
+            : r.advertisementData.advName.isNotEmpty
+                ? r.advertisementData.advName
+                : '';
+
+        // Cek apakah device advertise service UUID SightAssist
+        final hasSightAssistService = r.advertisementData.serviceUuids
+            .any((uuid) =>
+                uuid.str.toLowerCase() ==
+                AppConstants.bleServiceUuid.toLowerCase());
+
+        // Tampilkan device yang punya nama ATAU advertise SightAssist service
+        if (name.isNotEmpty || hasSightAssistService) {
+          final displayName =
+              name.isNotEmpty ? name : 'Unknown (${r.device.remoteId.str})';
+          AppLogger.info(
+              _tag,
+              'Device: $displayName, RSSI: ${r.rssi}, '
+              'Services: ${r.advertisementData.serviceUuids}');
+          devices.add(BleDevice(
+            name: displayName,
+            id: r.device.remoteId.str,
+            rssi: r.rssi,
+          ));
+        }
+      }
+
+      AppLogger.info(_tag, '${devices.length} perangkat ditampilkan');
+      return devices;
     });
   }
 
@@ -150,4 +213,3 @@ class BleService {
     _triggerController.close();
   }
 }
-

@@ -128,6 +128,7 @@ class AssistantProvider extends ChangeNotifier {
   String _voiceText = '';
   bool _locationReady = false;
   String _locationDescription = '';
+  bool _blockAutoListen = false;
 
   /// Instruksi persisten untuk mode autopilot.
   /// Perintah ini melekat sampai user mengubahnya.
@@ -231,6 +232,10 @@ class AssistantProvider extends ChangeNotifier {
     await _ttsService.initialize();
     await _apiService.initialize();
 
+    _ttsService.onSpeechCompleted = _handleTtsCompletion;
+    _sttService.onStatusChanged = _handleSttStatus;
+    _sttService.onErrorOccurred = _handleSttError;
+
     // Ucapkan pesan selamat datang
     await _ttsService.speak(AppStrings.ttsWelcome);
 
@@ -283,6 +288,68 @@ class AssistantProvider extends ChangeNotifier {
     }
   }
 
+  /// Dipanggil ketika TTS selesai berbicara.
+  /// Membantu me-restart microphone secara otomatis khusus untuk mode obrolan.
+  void _handleTtsCompletion() {
+    if (_mode == AssistantMode.obrolan && !_isRecording && _status == AssistantStatus.idle) {
+      if (_blockAutoListen) {
+        _blockAutoListen = false;
+        AppLogger.info(_tag, 'Auto listen diblokir karena stopAll');
+        return;
+      }
+      AppLogger.info(_tag, 'TTS selesai di mode obrolan, mengaktifkan mic otomatis...');
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (_mode == AssistantMode.obrolan && !_isRecording && _status == AssistantStatus.idle) {
+          startVoiceInput(silent: true);
+        }
+      });
+    }
+  }
+
+  /// Dipanggil ketika status STT berubah.
+  void _handleSttStatus(String status) {
+    AppLogger.info(_tag, 'STT Status berubah: $status');
+    // Jika STT selesai mendengarkan tapi status internal kita masih merekam,
+    // berarti proses mendengarkan terhenti secara otomatis (timeout atau selesai bicara).
+    if (status == 'notListening' || status == 'done') {
+      if (_isRecording) {
+        AppLogger.info(_tag, 'STT terhenti otomatis. Memproses kata terakhir: $_voiceText');
+        _isRecording = false;
+        _setStatus(AssistantStatus.idle);
+        notifyListeners();
+
+        // Panggil penyelesaian input suara
+        _onVoiceInputComplete(_voiceText);
+      }
+    }
+  }
+
+  /// Dipanggil ketika terjadi error pada STT.
+  void _handleSttError(String errorMsg) {
+    AppLogger.error(_tag, 'STT Error terpantau: $errorMsg');
+    // Error biasanya akan memicu status perubahan ke 'notListening' / 'done' secara otomatis,
+    // tapi jika stuck kita bisa meresetnya ke idle di sini jika statusnya listening.
+    if (_isRecording && _status == AssistantStatus.listening) {
+      AppLogger.warning(_tag, 'Mereset status listening ke idle karena STT error');
+      _isRecording = false;
+      _setStatus(AssistantStatus.idle);
+      
+      if (_voiceText.isNotEmpty) {
+        AppLogger.info(_tag, 'Memproses teks parsial sebelum error: $_voiceText');
+        _onVoiceInputComplete(_voiceText);
+      } else {
+        // Jika mode obrolan, kita ingin mic tetap aktif kembali agar user bisa mencoba lagi
+        if (_mode == AssistantMode.obrolan) {
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (_mode == AssistantMode.obrolan && !_isRecording && _status == AssistantStatus.idle) {
+              startVoiceInput(silent: true);
+            }
+          });
+        }
+      }
+    }
+  }
+
   // ─── Mode Switch ───────────────────────────────────────────
 
   /// Ganti mode (cycle ke mode berikutnya).
@@ -302,7 +369,11 @@ class AssistantProvider extends ChangeNotifier {
     notifyListeners();
 
     // Ucapkan mode baru
-    await _ttsService.speak('${AppStrings.modeSwitched} $modeLabel');
+    if (_mode == AssistantMode.obrolan) {
+      await _ttsService.speak(AppStrings.ttsChatMode);
+    } else {
+      await _ttsService.speak('${AppStrings.modeSwitched} $modeLabel');
+    }
     AppLogger.info(_tag, 'Mode diubah ke: $modeLabel');
   }
 
@@ -318,11 +389,13 @@ class AssistantProvider extends ChangeNotifier {
 
   /// Mulai merekam suara untuk prompt.
   /// Hentikan TTS dulu agar tidak mengganggu microphone.
-  Future<void> startVoiceInput() async {
+  Future<void> startVoiceInput({bool silent = false}) async {
     if (!_sttReady) {
       await _ttsService.speak(AppStrings.ttsVoiceNotAvailable);
       return;
     }
+
+    _blockAutoListen = false;
 
     // Stop TTS dulu agar mic tidak menangkap suara TTS
     await _ttsService.stop();
@@ -331,9 +404,15 @@ class AssistantProvider extends ChangeNotifier {
     _voiceText = '';
     _setStatus(AssistantStatus.listening);
 
-    await _ttsService.speak(AppStrings.ttsListening);
-    // Tunggu TTS selesai bicara sebelum mulai listen
-    await Future.delayed(const Duration(milliseconds: 1500));
+    if (!silent) {
+      await _ttsService.speak(AppStrings.ttsListening);
+      // Tunggu TTS selesai bicara sebelum mulai listen
+      await Future.delayed(const Duration(milliseconds: 1500));
+    } else {
+      // Tunggu sebentar agar TTS benar-benar terhenti sebelum mic menyala
+      // Ditingkatkan ke 500ms agar audio focus OS benar-benar rilis
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
 
     await _sttService.startListening(
       onResult: (text, isFinal) {
@@ -342,6 +421,7 @@ class AssistantProvider extends ChangeNotifier {
 
         if (isFinal) {
           _isRecording = false;
+          _setStatus(AssistantStatus.idle);
           _customPrompt = text;
           notifyListeners();
           AppLogger.info(_tag, 'Voice prompt: $text');
@@ -353,7 +433,7 @@ class AssistantProvider extends ChangeNotifier {
       localeId: 'id-ID',
     );
 
-    AppLogger.info(_tag, 'Voice input dimulai');
+    AppLogger.info(_tag, 'Voice input dimulai (silent: $silent)');
   }
 
   /// Dipanggil setelah STT selesai mengenali suara.
@@ -385,8 +465,13 @@ class AssistantProvider extends ChangeNotifier {
         if (!isAutopiloting) {
           await startAutopilot();
         } else {
-          // Kalau sudah aktif, langsung analisis instan dengan instruksi baru
-          await executePipeline(promptOverride: 'autopilot');
+          // Kalau sudah aktif, langsung analisis instan jika ada suara, kalau kosong dibatalkan
+          if (text.isNotEmpty) {
+            await executePipeline(promptOverride: 'autopilot');
+          } else {
+            _blockAutoListen = true;
+            await _ttsService.speak(AppStrings.ttsVoiceCancelled);
+          }
         }
         break;
 
@@ -396,14 +481,18 @@ class AssistantProvider extends ChangeNotifier {
           await _ttsService.speak(AppStrings.ttsAnalyzing);
           await executeChat(text);
         } else {
-          await _ttsService.speak('Hmm, aku nggak dengar apa-apa. Coba lagi ya.');
+          _blockAutoListen = true;
+          await _ttsService.speak(AppStrings.ttsVoiceMuted);
         }
         break;
 
       case AssistantMode.navigasi:
         // Mode navigasi: ambil gambar + lokasi GPS → kirim ke AI
+        // Default prompt diizinkan jika suara kosong
         if (text.isNotEmpty) {
           await _ttsService.speak(AppStrings.ttsPromptReceived);
+        } else {
+          await _ttsService.speak(AppStrings.ttsBleTriggerReceived);
         }
         await executeNavigationPipeline(voicePrompt: text);
         break;
@@ -412,23 +501,33 @@ class AssistantProvider extends ChangeNotifier {
         // Mode read: ambil gambar → baca teks saja
         if (text.isNotEmpty) {
           await _ttsService.speak(AppStrings.ttsPromptReceived);
+          await executePipeline();
         } else {
           await _ttsService.speak(AppStrings.ttsBleTriggerReceived);
+          await executePipeline(promptOverride: 'read');
         }
-        await executePipeline(promptOverride: 'read');
         break;
     }
   }
 
   /// Hentikan merekam suara.
   Future<void> stopVoiceInput() async {
+    _blockAutoListen = true;
     await _sttService.stopListening();
-    _isRecording = false;
-    if (_status == AssistantStatus.listening) {
-      _setStatus(AssistantStatus.idle);
+    
+    if (_isRecording) {
+      _isRecording = false;
+      if (_status == AssistantStatus.listening) {
+        _setStatus(AssistantStatus.idle);
+      }
+      notifyListeners();
+      AppLogger.info(_tag, 'Voice input dihentikan manual');
+
+      if (_voiceText.isNotEmpty) {
+        AppLogger.info(_tag, 'Memproses teks yang tertangkap sebelum dihentikan: $_voiceText');
+        _onVoiceInputComplete(_voiceText);
+      }
     }
-    notifyListeners();
-    AppLogger.info(_tag, 'Voice input dihentikan');
   }
 
   /// Toggle voice input.
@@ -533,21 +632,19 @@ class AssistantProvider extends ChangeNotifier {
         // Mode general: kirim ke OpenRouter API
         // 2. UPLOADING
         _setStatus(AssistantStatus.uploading);
-        await _ttsService.speak(AppStrings.ttsCaptureSuccess);
+        // User requested to remove the "gambar sedang diproses" (ttsCaptureSuccess) voice feedback
+        // await _ttsService.speak(AppStrings.ttsCaptureSuccess);
 
         final String promptMode;
         final String? effectivePrompt;
 
-        if (promptOverride == 'general') {
-          promptMode = 'general';
-          effectivePrompt = null;
+        if (promptOverride != null) {
+          promptMode = promptOverride;
+          effectivePrompt = _customPrompt.isNotEmpty ? _customPrompt : null;
         } else {
-          // Custom prompt dari voice input
-          final String? userPrompt = promptOverride ??
-              (_customPrompt.isNotEmpty ? _customPrompt : null);
-          if (userPrompt != null && userPrompt.isNotEmpty) {
+          if (_customPrompt.isNotEmpty) {
             promptMode = 'custom';
-            effectivePrompt = userPrompt;
+            effectivePrompt = _customPrompt;
           } else {
             promptMode = _modeString;
             effectivePrompt = null;
@@ -704,7 +801,7 @@ class AssistantProvider extends ChangeNotifier {
 
       await _ttsService.speak(AppStrings.ttsError);
 
-      await Future.delayed(const Duration(seconds: 2));
+      // Set to idle immediately so completion handler can restart the mic once speaking is done
       _setStatus(AssistantStatus.idle);
     }
   }
@@ -790,6 +887,7 @@ class AssistantProvider extends ChangeNotifier {
     await _sttService.stopListening();
     await _ttsService.stop();
     _isRecording = false;
+    _blockAutoListen = true;
     _setStatus(AssistantStatus.idle);
     await _ttsService.speak(AppStrings.ttsStopAll);
     AppLogger.info(_tag, 'Semua proses dihentikan');

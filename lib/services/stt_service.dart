@@ -16,6 +16,10 @@ class SttService {
   bool _isListening = false;
   String _lastResult = '';
 
+  /// Callbacks untuk mengabari pihak luar tentang perubahan status & error
+  void Function(String status)? onStatusChanged;
+  void Function(String errorMsg)? onErrorOccurred;
+
   /// Apakah STT tersedia di perangkat ini
   bool get isAvailable => _isAvailable;
 
@@ -34,11 +38,17 @@ class SttService {
         onError: (error) {
           AppLogger.error(_tag, 'STT Error: ${error.errorMsg}');
           _isListening = false;
+          if (onErrorOccurred != null) {
+            onErrorOccurred!(error.errorMsg);
+          }
         },
         onStatus: (status) {
           AppLogger.info(_tag, 'STT Status: $status');
           if (status == 'done' || status == 'notListening') {
             _isListening = false;
+          }
+          if (onStatusChanged != null) {
+            onStatusChanged!(status);
           }
         },
       );
@@ -94,6 +104,7 @@ class SttService {
           _isListening = false;
         }
       },
+      pauseFor: const Duration(seconds: 10),
       listenOptions: SpeechListenOptions(
         localeId: localeId,
         listenMode: ListenMode.dictation,

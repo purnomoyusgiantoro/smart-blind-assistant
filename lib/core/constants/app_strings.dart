@@ -67,6 +67,8 @@ class AppStrings {
       'GPS belum siap nih. Coba pastikan lokasi di HP-mu aktif ya.';
   static const String ttsStopAll = 'Semua proses dihentikan ya.';
   static const String ttsUnknownCommand = 'Perintah tidak dikenali.';
+  static const String ttsVoiceCancelled = 'Perintah dibatalkan karena tidak ada suara.';
+  static const String ttsVoiceMuted = 'Sepertinya tidak ada suara. Mic saya matikan sementara.';
 
   // ─── Halaman ───────────────────────────────────────────────
   static const String homeTitle = 'Beranda';
