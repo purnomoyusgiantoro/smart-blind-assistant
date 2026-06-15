@@ -188,7 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
 
-        if (assistant.mode == AssistantMode.navigasi)
+        if (assistant.mode == AssistantMode.asisten && assistant.shortLocationLabel.isNotEmpty)
           Positioned(
             top: 12,
             left: 12,
@@ -525,19 +525,15 @@ class _HomeScreenState extends State<HomeScreen> {
   String _getVoiceHint(AssistantMode mode) {
     final assistant = context.read<AssistantProvider>();
     switch (mode) {
-      case AssistantMode.general:
-        return 'Tekan mic untuk tanya tentang sekitarmu';
+      case AssistantMode.asisten:
+        return 'Tanya apa saja, panduan arah, atau baca teks';
       case AssistantMode.autopilot:
         if (assistant.autopilotInstruction.isNotEmpty) {
           return 'Instruksi: "${assistant.autopilotInstruction}" (tekan mic untuk ganti)';
         }
         return 'Tekan mic untuk kasih perintah autopilot';
-      case AssistantMode.navigasi:
-        return 'Tekan mic untuk navigasi atau tanya lokasi';
       case AssistantMode.obrolan:
         return 'Tekan mic untuk ngobrol sama asistenmu';
-      case AssistantMode.read:
-        return 'Tekan mic untuk membaca teks pada gambar';
     }
   }
 
@@ -691,16 +687,12 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Dapatkan ikon sesuai mode
   IconData _getModeIcon(AssistantMode mode) {
     switch (mode) {
-      case AssistantMode.general:
+      case AssistantMode.asisten:
         return Icons.visibility;
       case AssistantMode.autopilot:
         return Icons.speed;
-      case AssistantMode.navigasi:
-        return Icons.navigation;
       case AssistantMode.obrolan:
         return Icons.chat;
-      case AssistantMode.read:
-        return Icons.menu_book;
     }
   }
 

@@ -19,16 +19,12 @@ class ModeSwitchButton extends StatelessWidget {
         // Ikon berdasarkan mode saat ini
         final IconData modeIcon;
         switch (assistant.mode) {
-          case AssistantMode.general:
+          case AssistantMode.asisten:
             modeIcon = Icons.visibility;
           case AssistantMode.autopilot:
             modeIcon = Icons.speed;
-          case AssistantMode.navigasi:
-            modeIcon = Icons.navigation;
           case AssistantMode.obrolan:
             modeIcon = Icons.chat;
-          case AssistantMode.read:
-            modeIcon = Icons.menu_book;
         }
 
         return SizedBox(

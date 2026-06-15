@@ -28,11 +28,9 @@ class AppStrings {
   static const String bleScanButton = 'Cari Perangkat';
 
   // ─── Mode (3 Mode) ────────────────────────────────────────
-  static const String modeGeneral = 'Mode General';
+  static const String modeAsisten = 'Mode Asisten';
   static const String modeAutopilot = 'Mode Autopilot';
-  static const String modeNavigasi = 'Mode Navigasi';
   static const String modeObrolan = 'Mode Obrolan';
-  static const String modeRead = 'Mode Baca Teks';
   static const String modeSwitched = 'Ganti ke';
 
   // ─── TTS Feedback (Natural & Santai) ──────────────────────
@@ -88,7 +86,6 @@ class AppStrings {
   static const String buttonSwitchMode = 'Ganti Mode';
   static const String buttonStartAutopilot = 'Mulai Autopilot';
   static const String buttonStopAutopilot = 'Hentikan Autopilot';
-  static const String buttonNavigasi = 'Cek Lokasi & Navigasi';
 
   // ─── Prompt ────────────────────────────────────────────────
   static const String promptHint = 'Tulis pertanyaan tentang gambar...';

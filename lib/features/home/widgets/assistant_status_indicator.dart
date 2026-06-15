@@ -20,16 +20,8 @@ class AssistantStatusIndicator extends StatelessWidget {
 
         switch (status) {
           case AssistantStatus.idle:
-            if (assistant.mode == AssistantMode.navigasi) {
-              statusColor = AppTheme.secondaryColor;
-              statusIcon = Icons.navigation;
-            } else if (assistant.mode == AssistantMode.read) {
-              statusColor = Colors.orange;
-              statusIcon = Icons.menu_book;
-            } else {
-              statusColor = AppTheme.primaryColor;
-              statusIcon = Icons.visibility;
-            }
+            statusColor = AppTheme.primaryColor;
+            statusIcon = Icons.visibility;
           case AssistantStatus.listening:
             statusColor = AppTheme.warningColor;
             statusIcon = Icons.hearing;
