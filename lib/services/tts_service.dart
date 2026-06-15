@@ -57,12 +57,15 @@ class TtsService {
   Future<void> speak(String text) async {
     if (text.isEmpty) return;
 
+    // Bersihkan karakter markdown agar tidak dibacakan (misal: **, #, _, ~, `)
+    final cleanText = text.replaceAll(RegExp(r'[*#_~`]'), '').trim();
+
     if (_isSpeaking) {
       await stop();
     }
 
-    AppLogger.info(_tag, 'Mengucapkan: ${text.substring(0, text.length.clamp(0, 50))}...');
-    await _tts.speak(text);
+    AppLogger.info(_tag, 'Mengucapkan: ${cleanText.substring(0, cleanText.length.clamp(0, 50))}...');
+    await _tts.speak(cleanText);
   }
 
   /// Hentikan pembicaraan yang sedang berlangsung.

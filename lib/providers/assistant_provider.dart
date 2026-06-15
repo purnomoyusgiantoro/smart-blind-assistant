@@ -416,6 +416,9 @@ class AssistantProvider extends ChangeNotifier {
 
     await _sttService.startListening(
       onResult: (text, isFinal) {
+        // Jika sudah berhenti merekam secara manual/otomatis, abaikan hasil susulan
+        if (!_isRecording) return;
+
         _voiceText = text;
         notifyListeners();
 

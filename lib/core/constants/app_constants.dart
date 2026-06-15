@@ -57,5 +57,5 @@ class AppConstants {
 
   // ─── Timeout ───────────────────────────────────────────────
   /// Timeout HTTP request (detik)
-  static const int httpTimeoutSeconds = 30;
+  static const int httpTimeoutSeconds = 15;
 }
