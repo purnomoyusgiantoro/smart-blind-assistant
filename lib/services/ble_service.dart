@@ -71,16 +71,25 @@ class BleService {
     // Set log level verbose untuk debugging
     FlutterBluePlus.setLogLevel(LogLevel.verbose);
 
-    // Pastikan scan sebelumnya dihentikan dulu
+    // Pastikan scan sebelumnya dihentikan dulu (fire-and-forget OK karena
+    // startScan akan menunggu internal lock)
     FlutterBluePlus.stopScan();
 
-    // Mulai scan — TANPA withServices agar semua device muncul
-    // TANPA androidUsesFineLocation agar kompatibel dengan neverForLocation
+    // Mulai scan dengan konfigurasi optimal:
+    // - androidScanMode: lowLatency → scan lebih agresif, device lebih cepat muncul
+    // - TANPA withServices → semua device muncul (tidak filter by service UUID)
+    // - TANPA androidUsesFineLocation → kompatibel dengan neverForLocation di manifest
+    // - removeIfGone → hapus device yang hilang setelah 5 detik
+    // - continuousUpdates & continuousDivisor → update stream real-time
     FlutterBluePlus.startScan(
       timeout: Duration(seconds: AppConstants.bleScanTimeoutSeconds),
+      androidScanMode: AndroidScanMode.lowLatency,
+      removeIfGone: const Duration(seconds: 5),
+      continuousUpdates: true,
+      continuousDivisor: 1,
     );
 
-    return FlutterBluePlus.scanResults.map((results) {
+    return FlutterBluePlus.onScanResults.map((results) {
       AppLogger.info(
           _tag, 'scanResults: ${results.length} raw results');
 

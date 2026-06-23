@@ -210,7 +210,7 @@ void setup() {
     NimBLEDevice::init("SightAssist-ESP32");
     
     // Set TX power untuk jangkauan optimal
-    NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+    NimBLEDevice::setPower(ESP_PWR_LVL_P21);
     
     // Buat BLE Server
     pServer = NimBLEDevice::createServer();

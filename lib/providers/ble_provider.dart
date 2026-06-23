@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../core/utils/logger.dart';
 import '../core/utils/permissions_handler.dart';
@@ -81,7 +83,32 @@ class BleProvider extends ChangeNotifier {
       }
     }
 
-    // 3. Mulai scan
+    // 3. Cek Location permission (diperlukan BLE scan di Android ≤11)
+    if (Platform.isAndroid) {
+      final locationGranted = await Permission.locationWhenInUse.isGranted;
+      if (!locationGranted) {
+        AppLogger.warning(_tag, 'Izin Lokasi belum diberikan, meminta...');
+        final result = await Permission.locationWhenInUse.request();
+        if (!result.isGranted) {
+          _lastError = 'Izin Lokasi ditolak. Diperlukan untuk scan Bluetooth.';
+          AppLogger.error(_tag, _lastError!);
+          notifyListeners();
+          return;
+        }
+      }
+
+      // 4. Cek apakah Location Services (GPS) aktif
+      final serviceStatus = await Permission.locationWhenInUse.serviceStatus;
+      if (!serviceStatus.isEnabled) {
+        _lastError = 'Lokasi (GPS) mati. Nyalakan Lokasi di Pengaturan untuk scan Bluetooth.';
+        AppLogger.error(_tag, _lastError!);
+        notifyListeners();
+        return;
+      }
+      AppLogger.info(_tag, 'Lokasi aktif dan izin diberikan');
+    }
+
+    // 5. Mulai scan
     _isScanning = true;
     _devices = [];
     notifyListeners();

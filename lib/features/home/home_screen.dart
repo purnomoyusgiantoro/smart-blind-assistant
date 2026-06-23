@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_strings.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/logger.dart';
 import '../../providers/assistant_provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../routes/app_router.dart';
@@ -27,6 +28,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  BleProvider? _bleProvider;
+
   @override
   void initState() {
     super.initState();
@@ -35,16 +38,33 @@ class _HomeScreenState extends State<HomeScreen> {
       final assistant = context.read<AssistantProvider>();
       assistant.initialize();
 
-      // Subscribe ke BLE trigger jika sudah terhubung
-      final ble = context.read<BleProvider>();
-      if (ble.isConnected) {
-        assistant.listenToTrigger(ble.triggerStream);
+      // Listen ke perubahan BLE state (termasuk koneksi baru)
+      _bleProvider = context.read<BleProvider>();
+      _bleProvider!.addListener(_onBleStateChanged);
+
+      // Subscribe langsung jika sudah terhubung
+      if (_bleProvider!.isConnected) {
+        assistant.listenToTrigger(_bleProvider!.triggerStream);
       }
     });
   }
 
+  /// Dipanggil setiap kali BleProvider berubah (connect/disconnect).
+  /// Auto-subscribe ke trigger stream saat ESP32 terhubung.
+  void _onBleStateChanged() {
+    final ble = _bleProvider;
+    if (ble == null) return;
+
+    final assistant = context.read<AssistantProvider>();
+    if (ble.isConnected) {
+      assistant.listenToTrigger(ble.triggerStream);
+      AppLogger.info('HomeScreen', 'BLE terhubung → trigger stream subscribed');
+    }
+  }
+
   @override
   void dispose() {
+    _bleProvider?.removeListener(_onBleStateChanged);
     super.dispose();
   }
 
