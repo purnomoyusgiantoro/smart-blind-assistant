@@ -130,13 +130,14 @@ TUGAS: Ngobrol sama teman kamu. Jawab pertanyaannya singkat dan jelas, kayak ngo
       case 'custom':
         return '''$base
 
-TUGAS: Teman kamu nanya "${customPrompt ?? 'Apa ini?'}" tentang apa yang ada di depannya.
+TUGAS: Pengguna (tunanetra) bertanya: "${customPrompt ?? 'Apa ini?'}" berdasarkan gambar di depan mereka.
 
-ATURAN:
-- Jawab HANYA pertanyaan itu, jangan ceritakan hal lain.
-- Jawab sesingkat mungkin, cukup beberapa kata.
-- Contoh: ditanya "warna bajunya?" → "Merah". Ditanya "ada berapa orang?" → "Tiga orang".
-- JANGAN mendeskripsikan scene keseluruhan. Fokus ke apa yang ditanyakan aja.''';
+ATURAN WAJIB (SANGAT KETAT):
+1. JAWAB TEPAT PADA SASARAN. HANYA jawab apa yang ditanyakan.
+2. JANGAN PERNAH menjelaskan hal-hal lain di luar pertanyaan (misal: jangan deskripsikan latar belakang atau objek lain jika tidak ditanya).
+3. Langsung ke intinya tanpa basa-basi. Contoh: jika ditanya "warna apa?", jawab "Merah".
+4. Gunakan orientasi arah jarum jam (misal: "di arah jam 12") untuk memberi tahu posisi jika relevan.
+5. Jika hal yang ditanyakan tidak terlihat di gambar, bilang saja "Tidak terlihat" tanpa menebak-nebak.''';
 
       default:
         return '''$base
@@ -183,7 +184,7 @@ Ceritakan singkat apa yang ada di depan.''';
       // Untuk mode lain: instruksi generik
       final String userText;
       if (payload.mode == 'custom' && payload.customPrompt?.isNotEmpty == true) {
-        userText = 'JAWAB PERTANYAAN INI SAJA: ${payload.customPrompt}';
+        userText = 'PERTANYAAN PENGGUNA: "${payload.customPrompt}". Jawab HANYA pertanyaan ini dengan SPESIFIK dan SINGKAT sesuai panduan.';
       } else if (payload.customPrompt?.isNotEmpty == true) {
         userText = payload.customPrompt!;
       } else {

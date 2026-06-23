@@ -15,6 +15,13 @@
     <!-- ─── Lokasi (diperlukan BLE scan di Android ≤11 & GPS navigasi) ── -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- ─── Kamera & Suara ────────────────────────────────────── -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    
+    <!-- ─── Internet ──────────────────────────────────────────── -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:label="smartassistant"
         android:name="${applicationName}"
@@ -61,6 +68,10 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Required for speech_to_text plugin on Android 11+ -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 </manifest>

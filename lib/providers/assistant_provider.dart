@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
-import 'package:google_mlkit_object_detection/google_mlkit_object_detection.dart';
 
 import '../core/constants/app_constants.dart';
 import '../core/constants/app_strings.dart';
@@ -390,6 +389,7 @@ class AssistantProvider extends ChangeNotifier {
 
     _isRecording = true;
     _voiceText = '';
+    _customPrompt = ''; // Bersihkan prompt sebelumnya
     _setStatus(AssistantStatus.listening);
 
     if (!silent) {
@@ -560,57 +560,33 @@ class AssistantProvider extends ChangeNotifier {
       }
 
       if (wasAutopiloting) {
-        // Mode autopilot: proses secara lokal menggunakan ML Kit
-        _setStatus(AssistantStatus.processing);
-        
-        final options = ObjectDetectorOptions(
-          mode: DetectionMode.single,
-          classifyObjects: true,
-          multipleObjects: true,
-        );
-        final objectDetector = ObjectDetector(options: options);
-        final inputImage = InputImage.fromFilePath(imagePath);
-        
-        final List<DetectedObject> objects = await objectDetector.processImage(inputImage);
-        
-        // Kumpulkan label dari objek yang terdeteksi
-        final Set<String> detectedLabels = {};
-        for (DetectedObject detectedObject in objects) {
-          for (Label label in detectedObject.labels) {
-            // Filter confidence > 0.5
-            if (label.confidence > 0.5) {
-              detectedLabels.add(label.text);
-            }
-          }
-        }
-        
-        objectDetector.close();
+        // Mode autopilot: Kirim ke OpenRouter AI agar selalu menjawab perintah
+        _setStatus(AssistantStatus.uploading);
 
-        // Jika ada objek terdeteksi, sebutkan
-        _setStatus(AssistantStatus.speaking);
-        if (detectedLabels.isNotEmpty) {
-          // Terjemahkan label sederhana ke bahasa Indonesia jika memungkinkan (secara statis/kasar)
-          // Dalam skenario nyata, butuh mapping terjemahan yang lebih baik
-          final description = 'Saya melihat: ${detectedLabels.join(', ')}';
-          
-          // Cek apakah instruction/prompt pengguna terpenuhi (opsional)
-          if (_autopilotInstruction.isNotEmpty) {
-            final instructionLower = _autopilotInstruction.toLowerCase();
-            final matchesInstruction = detectedLabels.any((l) => 
-                instructionLower.contains(l.toLowerCase()));
-            
-            if (matchesInstruction) {
-              await _ttsService.speak('Perhatian! $_autopilotInstruction terdeteksi: ${detectedLabels.join(', ')}');
-            } else {
-              await _ttsService.speak(description);
-            }
-          } else {
-            await _ttsService.speak(description);
-          }
-        } else {
-          // Jika tidak ada yang penting, tetap diam di mode autopilot agar tidak berisik
-          AppLogger.info(_tag, 'Tidak ada objek signifikan terdeteksi oleh ML Kit');
+        // Ambil lokasi terbaru (opsional untuk autopilot, tapi baik untuk konteks keselamatan)
+        await updateLocation();
+
+        final payload = CapturePayload(
+          imagePath: imagePath,
+          timestamp: DateTime.now(),
+          mode: 'autopilot',
+          customPrompt: _autopilotInstruction.isNotEmpty ? _autopilotInstruction : null,
+          locationInfo: _locationDescription,
+        );
+
+        // PROCESSING
+        _setStatus(AssistantStatus.processing);
+        final response = await _apiService.analyzeImage(payload);
+        _lastResponse = response;
+
+        if (!response.isSuccess) {
+          throw Exception(response.errorMessage ?? 'AI error');
         }
+
+        // SPEAKING
+        _setStatus(AssistantStatus.speaking);
+        // Di mode autopilot, AI akan merespons sesuai _autopilotInstruction
+        await _ttsService.speak(response.description);
 
       } else {
         // Mode Asisten: selalu fetch lokasi dan kirim ke API
@@ -624,8 +600,8 @@ class AssistantProvider extends ChangeNotifier {
         final String? effectivePrompt;
 
         if (promptOverride != null) {
-          promptMode = promptOverride;
-          effectivePrompt = _customPrompt.isNotEmpty ? _customPrompt : null;
+          promptMode = 'custom';
+          effectivePrompt = promptOverride;
         } else {
           if (_customPrompt.isNotEmpty) {
             promptMode = 'custom';
@@ -653,7 +629,7 @@ class AssistantProvider extends ChangeNotifier {
         final payload = CapturePayload(
           imagePath: imagePath,
           timestamp: DateTime.now(),
-          mode: 'asisten',
+          mode: promptMode, // Gunakan promptMode (bisa 'asisten' atau 'custom')
           customPrompt: finalPrompt,
           locationInfo: _locationDescription,
         );
