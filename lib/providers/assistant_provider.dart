@@ -353,6 +353,10 @@ class AssistantProvider extends ChangeNotifier {
 
     // Cycle ke mode berikutnya menggunakan extension
     _mode = _mode.next;
+
+    // Bersihkan riwayat percakapan agar konteks tidak tercampur antar mode
+    _apiService.clearAssistantHistory();
+
     notifyListeners();
 
     // TTS konfirmasi ganti mode
@@ -651,6 +655,20 @@ class AssistantProvider extends ChangeNotifier {
       // Kembali ke status sebelumnya
       if (wasAutopiloting) {
         _setStatus(AssistantStatus.autopiloting);
+
+        // Proactive Safety: jika BAHAYA terdeteksi, re-check lebih cepat (3 detik)
+        // daripada menunggu interval autopilot penuh
+        if (_lastResponse != null &&
+            _lastResponse!.description.toLowerCase().startsWith('bahaya')) {
+          AppLogger.info(_tag,
+              '🚨 BAHAYA terdeteksi! Menjadwalkan re-check dalam 3 detik');
+          Future.delayed(const Duration(seconds: 3), () {
+            if (_status == AssistantStatus.autopiloting) {
+              AppLogger.info(_tag, 'Proactive re-check setelah BAHAYA');
+              executePipeline(promptOverride: 'autopilot');
+            }
+          });
+        }
       } else {
         _setStatus(AssistantStatus.idle);
       }

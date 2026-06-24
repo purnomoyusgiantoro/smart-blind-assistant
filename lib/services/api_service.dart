@@ -28,6 +28,10 @@ class ApiService {
   final List<Map<String, dynamic>> _chatHistory = [];
   bool _historyLoaded = false;
 
+  /// Memori riwayat untuk mode Asisten (konteks visual multi-turn)
+  /// Menyimpan 3 interaksi terakhir agar AI ingat percakapan sebelumnya.
+  final List<Map<String, dynamic>> _assistantHistory = [];
+
   /// Inisialisasi API service (memuat riwayat chat dari lokal)
   Future<void> initialize() async {
     if (_historyLoaded) return;
@@ -89,7 +93,18 @@ ATURAN PENTING:
 - JANGAN pernah bilang "gambar buram", "gambar tidak jelas", "kualitas rendah", atau sejenisnya. Tetap jawab sebaik mungkin walaupun gambar kurang jelas.
 - Hanya bilang tidak bisa menjawab kalau gambar benar-benar gelap/hitam total atau memang tidak ada yang terlihat sama sekali.
 - JANGAN bilang "Saya melihat gambar" atau "Pada gambar ini" — langsung ceritakan apa yang ada.
-- Pakai arah jam untuk posisi: "ada tangga di arah jam 2, sekitar 1 meter".''';
+- Pakai arah jam untuk posisi: "ada tangga di arah jam 2, sekitar 1 meter".
+
+SKENARIO PEJALAN KAKI TUNANETRA (SELALU PERHATIKAN):
+- Zebra cross & lampu lalu lintas — bilang kapan aman menyeberang.
+- Trotoar rusak, lubang, genangan air, permukaan tidak rata.
+- Tangga naik/turun — sebutkan kira-kira berapa anak tangga kalau kelihatan.
+- Pintu — terbuka/tertutup, dorong/tarik, posisi gagang.
+- Tanda/tulisan penting — nama toko, petunjuk arah, peringatan.
+- Orang yang mungkin bisa dimintai bantuan (petugas, satpam, dll).
+- Kendaraan yang mendekat dari arah manapun.
+- Perubahan permukaan jalan (aspal → keramik → tanah → rumput).
+- Batas trotoar, pembatas jalan, tiang, pot tanaman, dan rintangan setinggi kepala (dahan, kanopi).''';
 
   /// Mendapatkan system prompt berdasarkan mode.
   ///
@@ -113,7 +128,16 @@ Selalu prioritaskan peringatan bahaya kalau ada!''';
         final autopilotBase = '''$base
 
 TUGAS: Kamu lagi nemenin teman kamu jalan. Pantau keselamatan.
-Jawab super singkat, 2-3 kata aja. Contoh: "Aman nih", "Hati-hati ada tangga", "Ada motor di depan".''';
+
+FORMAT JAWABAN (WAJIB DIIKUTI):
+- Jika ada BAHAYA LANGSUNG (lubang, kendaraan mendekat, tangga mendadak, tiang, objek menghalangi jalan): mulai dengan "BAHAYA!" lalu jelaskan singkat dengan posisi arah jam.
+- Jika ada sesuatu yang perlu diperhatikan tapi tidak mendesak: mulai dengan "Hati-hati," lalu jelaskan.
+- Jika aman: jawab "Aman." atau "Jalan terus."
+
+Contoh:
+- "BAHAYA! Ada lubang besar di arah jam 12, sekitar 2 langkah."
+- "Hati-hati, ada motor parkir di kiri."
+- "Aman, jalan lurus aja."''';
 
         if (customPrompt != null && customPrompt.isNotEmpty) {
           return '''$autopilotBase
@@ -227,20 +251,25 @@ Ceritakan singkat apa yang ada di depan.''';
       }
 
       // Buat request body sesuai format OpenRouter/OpenAI
+      // Sertakan riwayat asisten (conversation memory) agar AI ingat konteks sebelumnya
+      final systemPrompt = _getSystemPrompt(
+        payload.mode,
+        customPrompt: payload.mode == 'navigasi'
+            ? systemPromptCustom
+            : payload.customPrompt,
+      );
+
+      final messages = <Map<String, dynamic>>[
+        {'role': 'system', 'content': systemPrompt},
+        // Tambahkan riwayat percakapan asisten (maks 3 interaksi = 6 pesan)
+        // agar AI ingat gambar & pertanyaan sebelumnya
+        ..._assistantHistory,
+        {'role': 'user', 'content': userContent},
+      ];
+
       final body = jsonEncode({
         'model': _model,
-        'messages': [
-          {
-            'role': 'system',
-            'content': _getSystemPrompt(
-              payload.mode,
-              customPrompt: payload.mode == 'navigasi'
-                  ? systemPromptCustom
-                  : payload.customPrompt,
-            ),
-          },
-          {'role': 'user', 'content': userContent},
-        ],
+        'messages': messages,
         'max_tokens': maxTokens,
         'temperature': 0.3,
       });
@@ -254,7 +283,24 @@ Ceritakan singkat apa yang ada di depan.''';
           )
           .timeout(Duration(seconds: AppConstants.httpTimeoutSeconds));
 
-      return _parseResponse(response);
+      final aiResponse = _parseResponse(response);
+
+      // Simpan ke riwayat asisten untuk conversation memory
+      if (aiResponse.isSuccess) {
+        _assistantHistory.add({'role': 'user', 'content': userText});
+        _assistantHistory.add({
+          'role': 'assistant',
+          'content': aiResponse.description,
+        });
+        // Batasi maksimal 3 pasang interaksi (6 pesan)
+        if (_assistantHistory.length > 6) {
+          _assistantHistory.removeRange(0, _assistantHistory.length - 6);
+        }
+        AppLogger.info(_tag,
+            'Riwayat asisten disimpan: ${_assistantHistory.length} pesan');
+      }
+
+      return aiResponse;
     } catch (e) {
       AppLogger.error(_tag, 'Gagal mengirim ke API', e);
       return AiResponse.error('Gagal menghubungi server: $e');
@@ -318,6 +364,21 @@ Ceritakan singkat apa yang ada di depan.''';
       AppLogger.error(_tag, 'Gagal mengirim chat ke API', e);
       return AiResponse.error('Gagal menghubungi server: $e');
     }
+  }
+
+  /// Bersihkan riwayat percakapan asisten.
+  ///
+  /// Dipanggil saat ganti mode agar konteks tidak tercampur.
+  void clearAssistantHistory() {
+    _assistantHistory.clear();
+    AppLogger.info(_tag, 'Riwayat asisten dibersihkan');
+  }
+
+  /// Bersihkan riwayat obrolan.
+  void clearChatHistory() {
+    _chatHistory.clear();
+    _saveChatHistory();
+    AppLogger.info(_tag, 'Riwayat obrolan dibersihkan');
   }
 
   // ─── Helpers ───────────────────────────────────────────────
