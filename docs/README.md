@@ -6,6 +6,7 @@ Selamat datang di dokumentasi proyek **Smart Blind Assistant** — aplikasi mobi
 
 | Dokumen | Deskripsi |
 |---------|-----------|
+| [Buku Panduan (User Manual)](./user-manual.md) | Panduan penggunaan dari awal hingga akhir untuk pengguna akhir |
 | [Arsitektur](./architecture.md) | Arsitektur sistem, pola desain, dan alur data |
 | [Desain UI/UX](./design.md) | Sistem desain, tema, aksesibilitas, dan komponen UI |
 | [Alur Kerja (Workflow)](./workflow.md) | Pipeline capture, navigasi, dan integrasi BLE-AI-TTS |
