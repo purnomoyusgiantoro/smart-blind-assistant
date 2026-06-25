@@ -117,6 +117,17 @@ class AssistantProvider extends ChangeNotifier {
   String _locationDescription = '';
   bool _blockAutoListen = false;
 
+  /// Guard agar _onVoiceInputComplete tidak dipanggil 2x bersamaan
+  /// (dari onResult isFinal DAN _handleSttStatus 'done')
+  bool _processingVoice = false;
+
+  /// Guard agar pipeline/chat tidak dieksekusi bersamaan dari rapid button press
+  bool _isProcessingPipeline = false;
+
+  /// Counter retry auto-listen di mode obrolan untuk mencegah infinite loop
+  int _autoListenRetries = 0;
+  static const int _maxAutoListenRetries = 3;
+
   /// Instruksi persisten untuk mode autopilot.
   /// Perintah ini melekat sampai user mengubahnya.
   /// Contoh: "beritahu kalau ada orang", "kalau ada mobil putih kasih tahu"
@@ -284,9 +295,15 @@ class AssistantProvider extends ChangeNotifier {
         AppLogger.info(_tag, 'Auto listen diblokir karena stopAll');
         return;
       }
-      AppLogger.info(_tag, 'TTS selesai di mode obrolan, mengaktifkan mic otomatis...');
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (_mode == AssistantMode.obrolan && !_isRecording && _status == AssistantStatus.idle) {
+      // Cek retry limit untuk mencegah infinite loop error
+      if (_autoListenRetries >= _maxAutoListenRetries) {
+        AppLogger.warning(_tag, 'Auto listen dihentikan: sudah gagal $_autoListenRetries kali berturut-turut');
+        _autoListenRetries = 0;
+        return;
+      }
+      AppLogger.info(_tag, 'TTS selesai di mode obrolan, mengaktifkan mic otomatis (retry: $_autoListenRetries)...');
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (_mode == AssistantMode.obrolan && !_isRecording && _status == AssistantStatus.idle && !_processingVoice) {
           startVoiceInput(silent: true);
         }
       });
@@ -300,6 +317,14 @@ class AssistantProvider extends ChangeNotifier {
     // berarti proses mendengarkan terhenti secara otomatis (timeout atau selesai bicara).
     if (status == 'notListening' || status == 'done') {
       if (_isRecording) {
+        // Guard: jika sudah diproses oleh onResult(isFinal), skip
+        if (_processingVoice) {
+          AppLogger.info(_tag, 'STT status done tapi sudah diproses oleh onResult, skip');
+          _isRecording = false;
+          _setStatus(AssistantStatus.idle);
+          notifyListeners();
+          return;
+        }
         AppLogger.info(_tag, 'STT terhenti otomatis. Memproses kata terakhir: $_voiceText');
         _isRecording = false;
         _setStatus(AssistantStatus.idle);
@@ -321,14 +346,20 @@ class AssistantProvider extends ChangeNotifier {
       _isRecording = false;
       _setStatus(AssistantStatus.idle);
       
-      if (_voiceText.isNotEmpty) {
+      if (_voiceText.isNotEmpty && !_processingVoice) {
         AppLogger.info(_tag, 'Memproses teks parsial sebelum error: $_voiceText');
         _onVoiceInputComplete(_voiceText);
       } else {
-        // Jika mode obrolan, kita ingin mic tetap aktif kembali agar user bisa mencoba lagi
+        // Jika mode obrolan, coba restart mic dengan retry limit
         if (_mode == AssistantMode.obrolan) {
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (_mode == AssistantMode.obrolan && !_isRecording && _status == AssistantStatus.idle) {
+          _autoListenRetries++;
+          if (_autoListenRetries >= _maxAutoListenRetries) {
+            AppLogger.warning(_tag, 'Auto listen dihentikan setelah $_autoListenRetries error berturut-turut');
+            _autoListenRetries = 0;
+            return;
+          }
+          Future.delayed(const Duration(milliseconds: 800), () {
+            if (_mode == AssistantMode.obrolan && !_isRecording && _status == AssistantStatus.idle && !_processingVoice) {
               startVoiceInput(silent: true);
             }
           });
@@ -386,10 +417,19 @@ class AssistantProvider extends ChangeNotifier {
       return;
     }
 
+    // Jangan mulai jika sedang memproses voice input sebelumnya
+    if (_processingVoice) {
+      AppLogger.warning(_tag, 'startVoiceInput diabaikan — sedang memproses voice sebelumnya');
+      return;
+    }
+
     _blockAutoListen = false;
 
     // Stop TTS dulu agar mic tidak menangkap suara TTS
     await _ttsService.stop();
+
+    // Tunggu sampai TTS benar-benar berhenti
+    await _waitForTtsSilence();
 
     _isRecording = true;
     _voiceText = '';
@@ -398,12 +438,17 @@ class AssistantProvider extends ChangeNotifier {
 
     if (!silent) {
       await _ttsService.speak(AppStrings.ttsListening);
-      // Tunggu TTS selesai bicara sebelum mulai listen
-      await Future.delayed(const Duration(milliseconds: 1500));
+      // Tunggu TTS selesai bicara "Mendengarkan..." sebelum mulai listen
+      await _waitForTtsSilence();
     } else {
-      // Tunggu sebentar agar TTS benar-benar terhenti sebelum mic menyala
-      // Ditingkatkan ke 500ms agar audio focus OS benar-benar rilis
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Tunggu sebentar agar audio focus OS benar-benar rilis
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+
+    // Pastikan masih dalam state recording (bisa saja di-cancel selama delay)
+    if (!_isRecording) {
+      AppLogger.info(_tag, 'Voice input dibatalkan selama menunggu TTS');
+      return;
     }
 
     await _sttService.startListening(
@@ -431,52 +476,79 @@ class AssistantProvider extends ChangeNotifier {
     AppLogger.info(_tag, 'Voice input dimulai (silent: $silent)');
   }
 
+  /// Tunggu sampai TTS benar-benar diam (polling dengan timeout).
+  Future<void> _waitForTtsSilence() async {
+    const maxWait = Duration(seconds: 5);
+    const pollInterval = Duration(milliseconds: 100);
+    final stopwatch = Stopwatch()..start();
+    while (_ttsService.isSpeaking && stopwatch.elapsed < maxWait) {
+      await Future.delayed(pollInterval);
+    }
+    // Tambah buffer kecil setelah TTS selesai agar audio focus OS rilis
+    await Future.delayed(const Duration(milliseconds: 200));
+  }
+
   /// Dipanggil setelah STT selesai mengenali suara.
   /// Menentukan aksi berdasarkan mode saat ini.
+  /// Dilindungi oleh _processingVoice agar tidak double-fire.
   Future<void> _onVoiceInputComplete(String text) async {
-    switch (_mode) {
-      case AssistantMode.asisten:
-        // Mode asisten: ambil gambar + lokasi + kirim dengan prompt
-        await _ttsService.speak(AppStrings.ttsAnalyzing);
-        await executePipeline(promptOverride: text.isNotEmpty ? text : null);
-        break;
+    // Guard: cegah double-processing
+    if (_processingVoice) {
+      AppLogger.warning(_tag, '_onVoiceInputComplete diabaikan — sudah dalam proses');
+      return;
+    }
+    _processingVoice = true;
 
-      case AssistantMode.autopilot:
-        // Mode autopilot: perintah suara menjadi instruksi PERSISTEN
-        // Instruksi ini akan melekat dan dipakai di setiap auto-capture
-        if (text.isNotEmpty) {
-          _autopilotInstruction = text;
-          notifyListeners();
-          await _ttsService.speak(
-            'Oke, aku catat. Mulai sekarang aku bakal perhatiin: $text');
-          AppLogger.info(_tag, 'Instruksi autopilot diset: $text');
-        }
-        // Mulai autopilot kalau belum aktif
-        if (!isAutopiloting) {
-          await startAutopilot();
-        } else {
-          // Kalau sudah aktif, langsung analisis instan jika ada suara, kalau kosong dibatalkan
+    // Reset auto-listen retry counter karena berhasil mendapat input
+    if (text.isNotEmpty) {
+      _autoListenRetries = 0;
+    }
+
+    try {
+      switch (_mode) {
+        case AssistantMode.asisten:
+          // Mode asisten: ambil gambar + lokasi + kirim dengan prompt
+          await _ttsService.speak(AppStrings.ttsAnalyzing);
+          await executePipeline(promptOverride: text.isNotEmpty ? text : null);
+          break;
+
+        case AssistantMode.autopilot:
+          // Mode autopilot: perintah suara menjadi instruksi PERSISTEN
+          // Instruksi ini akan melekat dan dipakai di setiap auto-capture
           if (text.isNotEmpty) {
-            await executePipeline(promptOverride: 'autopilot');
+            _autopilotInstruction = text;
+            notifyListeners();
+            await _ttsService.speak(
+              'Oke, aku catat. Mulai sekarang aku bakal perhatiin: $text');
+            AppLogger.info(_tag, 'Instruksi autopilot diset: $text');
+          }
+          // Mulai autopilot kalau belum aktif
+          if (!isAutopiloting) {
+            await startAutopilot();
+          } else {
+            // Kalau sudah aktif, langsung analisis instan jika ada suara, kalau kosong dibatalkan
+            if (text.isNotEmpty) {
+              await executePipeline(promptOverride: 'autopilot');
+            } else {
+              _blockAutoListen = true;
+              await _ttsService.speak(AppStrings.ttsVoiceCancelled);
+            }
+          }
+          break;
+
+        case AssistantMode.obrolan:
+          // Mode obrolan: kirim teks langsung ke AI tanpa gambar
+          if (text.isNotEmpty) {
+            await _ttsService.speak(AppStrings.ttsAnalyzing);
+            await executeChat(text);
           } else {
             _blockAutoListen = true;
-            await _ttsService.speak(AppStrings.ttsVoiceCancelled);
+            await _ttsService.speak(AppStrings.ttsVoiceMuted);
           }
-        }
-        break;
-
-      case AssistantMode.obrolan:
-        // Mode obrolan: kirim teks langsung ke AI tanpa gambar
-        if (text.isNotEmpty) {
-          await _ttsService.speak(AppStrings.ttsAnalyzing);
-          await executeChat(text);
-        } else {
-          _blockAutoListen = true;
-          await _ttsService.speak(AppStrings.ttsVoiceMuted);
-        }
-        break;
-
-
+          break;
+      }
+    } finally {
+      _processingVoice = false;
     }
   }
 
@@ -548,6 +620,13 @@ class AssistantProvider extends ChangeNotifier {
       AppLogger.warning(_tag, 'Pipeline diabaikan — status: $_status');
       return;
     }
+
+    // Guard: cegah concurrent pipeline execution dari rapid button press
+    if (_isProcessingPipeline) {
+      AppLogger.warning(_tag, 'Pipeline diabaikan — pipeline sebelumnya masih berjalan');
+      return;
+    }
+    _isProcessingPipeline = true;
 
     final wasAutopiloting = _status == AssistantStatus.autopiloting;
 
@@ -687,6 +766,8 @@ class AssistantProvider extends ChangeNotifier {
       } else {
         _setStatus(AssistantStatus.idle);
       }
+    } finally {
+      _isProcessingPipeline = false;
     }
   }
   // ─── Navigation Pipeline ──────────────────────────────────────
@@ -882,6 +963,9 @@ class AssistantProvider extends ChangeNotifier {
     await _ttsService.stop();
     _isRecording = false;
     _blockAutoListen = true;
+    _processingVoice = false;
+    _isProcessingPipeline = false;
+    _autoListenRetries = 0;
     _setStatus(AssistantStatus.idle);
     await _ttsService.speak(AppStrings.ttsStopAll);
     AppLogger.info(_tag, 'Semua proses dihentikan');
